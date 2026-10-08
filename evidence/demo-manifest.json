@@ -8,7 +8,7 @@
   "programs": [
     {
       "path": "skills/multi-persona-code-review/scripts/run_bounded_review.py",
-      "sha256": "97af8c7cb4badb32facb3353b38f5bc7605e5b0bdb75424d0123670220313b6f"
+      "sha256": "1d749ef4ae89539114378a597b8021f644202a1016a752677d37997e638f82f7"
     }
   ],
   "agent": {

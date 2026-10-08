@@ -101,9 +101,14 @@ These are known limits, not findings:
   gets `SIGTERM` to its process group. If the
   command's own process is still running five seconds later,
   the group gets `SIGKILL`; if that process has exited, the
-  rest of the group is not signalled again. A process that
-  moved itself to another process group or session is not
-  signalled.
+  rest of the group is not signalled again. If the system
+  refuses to signal the group (`EPERM`), the command's own
+  process gets the signal instead. If that process is still
+  running five seconds after `SIGKILL`, for example because
+  the runner may not signal it, the runner stops waiting,
+  leaves it running and records `return_code` as `null` in
+  the JSON file. A process that moved itself to another
+  process group or session is not signalled.
 - When the command exits on its own, its process group is
   not signalled, so a background process it started keeps
   running. Each wake reads at most 1 MiB. Once the runner has

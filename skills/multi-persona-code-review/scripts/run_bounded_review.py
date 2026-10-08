@@ -41,6 +41,9 @@ POLL_SECONDS = 0.5
 # descendant that writes without pause cannot keep the runner
 # reading.
 READ_LIMIT_BYTES = 1 << 20
+# How long a stopped lane gets after SIGTERM before SIGKILL, and
+# after SIGKILL before the runner stops waiting for it.
+STOP_WAIT_SECONDS = 5.0
 
 FINAL_STATUSES = {
     "completed",
@@ -113,24 +116,38 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def terminate_process(process: subprocess.Popen[bytes]) -> None:
-    # macOS can answer EPERM instead of ESRCH when the group's
-    # leader is a zombie, so PermissionError is treated as gone.
+def signal_lane(process: subprocess.Popen[bytes], sig: int) -> bool:
+    """Signal the lane's process group; False when the group is gone.
+
+    EPERM from killpg does not prove the group is gone: macOS
+    answers it for a group whose leader is a zombie, and any
+    system answers it for a group the runner may not signal. The
+    command's own process is then signalled directly; Popen skips
+    it when it has already exited.
+    """
     try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        try:
+            process.send_signal(sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+    return True
+
+
+def terminate_process(process: subprocess.Popen[bytes]) -> None:
+    if not signal_lane(process, signal.SIGTERM):
         return
 
-    deadline = time.monotonic() + 5.0
+    deadline = time.monotonic() + STOP_WAIT_SECONDS
     while time.monotonic() < deadline:
         if process.poll() is not None:
             return
         time.sleep(0.1)
 
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        return
+    signal_lane(process, signal.SIGKILL)
 
 
 def read_available(fd: int, limit: int | None = None) -> str:
@@ -175,6 +192,7 @@ def collect_output(
     last_output_at = started_at
     output_parts: list[str] = []
     status = "running"
+    stopped = False
 
     while True:
         now = time.monotonic()
@@ -197,6 +215,7 @@ def collect_output(
 
         if now - started_at > timeout_seconds:
             status = "timed_out"
+            stopped = True
             terminate_process(process)
             output = read_available(fd, READ_LIMIT_BYTES)
             if output:
@@ -205,6 +224,7 @@ def collect_output(
 
         if now - last_output_at > idle_seconds:
             status = "stalled"
+            stopped = True
             terminate_process(process)
             output = read_available(fd, READ_LIMIT_BYTES)
             if output:
@@ -224,7 +244,15 @@ def collect_output(
                 last_output_at = time.monotonic()
 
     duration_seconds = time.monotonic() - started_at
-    return_code = process.wait()
+    if stopped:
+        # A process that may not be signalled can outlive SIGKILL;
+        # the runner then stops waiting and records no exit code.
+        try:
+            return_code: int | None = process.wait(timeout=STOP_WAIT_SECONDS)
+        except subprocess.TimeoutExpired:
+            return_code = None
+    else:
+        return_code = process.wait()
 
     if status == "completed" and return_code != 0:
         status = "failed"

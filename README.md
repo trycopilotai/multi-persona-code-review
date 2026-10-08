@@ -102,9 +102,15 @@ recorded as `timed_out` or `stalled`, with its own exit code
 as `return_code`.
 When a lane stalls or times out it sends `SIGTERM` to the lane's
 process group and, if the command's own process is still
-running five seconds later, `SIGKILL`. A lane can therefore
-run several seconds past its budget, and `duration_seconds`
-includes that time.
+running five seconds later, `SIGKILL`. If the system
+refuses to signal the group (`EPERM`), the runner signals
+the command's own process instead. If that process is still
+running five seconds after `SIGKILL`, for example because
+the runner may not signal it at all, the runner stops
+waiting, leaves it running, and records `return_code` as
+`null` in the JSON file. A lane can therefore run several
+seconds past its budget, and `duration_seconds` includes
+that time.
 
 ## What is in it
 
@@ -227,7 +233,7 @@ fails.
 
 ```sh
 set -eu
-release=v0.1.3
+release=v0.1.4
 install_target="$HOME/.claude/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -264,7 +270,7 @@ the block above is `install_target`.
 
 ```sh
 set -eu
-release=v0.1.3
+release=v0.1.4
 install_target="$HOME/.agents/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"

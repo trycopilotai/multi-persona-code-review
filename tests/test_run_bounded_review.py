@@ -672,32 +672,67 @@ class ProcessGroupTest(RunnerTestCase):
                 time.sleep(0.1)
         self.assertFalse(alive, "the child outlived the stalled lane")
 
-    def test_a_permission_error_from_killpg_means_the_group_is_gone(self) -> None:
-        # macOS can raise EPERM, not ESRCH, when the group's leader is
-        # a zombie. That must end the stop like ProcessLookupError does.
+    def load_module(self):
         spec = importlib.util.spec_from_file_location("run_bounded_review", PROGRAM)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        return module
+
+    def test_a_group_that_is_gone_ends_the_stop(self) -> None:
+        module = self.load_module()
+        process = mock.Mock(pid=12345)
+        killpg = mock.Mock(side_effect=ProcessLookupError)
+        with mock.patch.object(module.os, "killpg", killpg):
+            module.terminate_process(process)
+        killpg.assert_called_once_with(12345, signal.SIGTERM)
+        process.send_signal.assert_not_called()
+        process.poll.assert_not_called()
+
+    def test_a_permission_error_from_killpg_signals_the_command_itself(self) -> None:
+        # EPERM does not prove the group is gone, so the stop goes on
+        # with the command's own process: SIGTERM, then SIGKILL.
+        module = self.load_module()
         process = mock.Mock(pid=12345)
         process.poll.return_value = None
-        for error in (ProcessLookupError, PermissionError):
-            killpg = mock.Mock(side_effect=error)
-            with mock.patch.object(module.os, "killpg", killpg):
-                module.terminate_process(process)
-            killpg.assert_called_once_with(12345, signal.SIGTERM)
-            process.poll.assert_not_called()
-        signals = []
-
-        def killpg_after_term(pid: int, sig: int) -> None:
-            signals.append(sig)
-            if sig == signal.SIGKILL:
-                raise PermissionError(1, "Operation not permitted")
-
-        with mock.patch.object(module.os, "killpg", killpg_after_term), mock.patch.object(
+        killpg = mock.Mock(side_effect=PermissionError(1, "Operation not permitted"))
+        with mock.patch.object(module.os, "killpg", killpg), mock.patch.object(
             module.time, "sleep"
         ), mock.patch.object(module.time, "monotonic", side_effect=[0.0, 0.0, 10.0]):
             module.terminate_process(process)
-        self.assertEqual(signals, [signal.SIGTERM, signal.SIGKILL])
+        self.assertEqual(
+            killpg.call_args_list,
+            [mock.call(12345, signal.SIGTERM), mock.call(12345, signal.SIGKILL)],
+        )
+        self.assertEqual(
+            process.send_signal.call_args_list,
+            [mock.call(signal.SIGTERM), mock.call(signal.SIGKILL)],
+        )
+
+    def test_a_command_that_cannot_be_signalled_does_not_hold_the_runner(self) -> None:
+        # Neither the group nor the command may be signalled, as for a
+        # program another user owns. The runner stops waiting and
+        # records no exit code.
+        module = self.load_module()
+        process = subprocess.Popen(
+            ["sleep", "60"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            preexec_fn=os.setsid,
+        )
+        self.addCleanup(process.stdout.close)
+        self.addCleanup(process.wait)
+        self.addCleanup(process.kill)
+        refused = mock.Mock(side_effect=PermissionError(1, "Operation not permitted"))
+        started = time.monotonic()
+        with mock.patch.object(module.os, "killpg", refused), mock.patch.object(
+            process, "send_signal", refused
+        ), mock.patch.object(module, "STOP_WAIT_SECONDS", 0.5):
+            status, _output, _duration, return_code = module.collect_output(process, 30, 0.5)
+        self.assertEqual(status, "stalled")
+        self.assertIsNone(return_code)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertIsNone(process.poll())
 
 
 class UsageTest(RunnerTestCase):
