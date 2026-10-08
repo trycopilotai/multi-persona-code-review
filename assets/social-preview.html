@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>multi-persona-code-review</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 640px;
+        background: #101418;
+      }
+      body {
+        box-sizing: border-box;
+        padding: 72px 80px;
+        color: #f7fbff;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .name {
+        font-size: 44px;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+      }
+      .line {
+        margin-top: 36px;
+        font-size: 30px;
+        line-height: 1.4;
+        color: #a7bac5;
+      }
+      .shown {
+        margin-top: 44px;
+        font-size: 24px;
+        line-height: 1.6;
+      }
+      .output {
+        color: #ffd166;
+        white-space: pre;
+      }
+      .foot {
+        position: absolute;
+        left: 80px;
+        bottom: 56px;
+        font-size: 22px;
+        color: #a7bac5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="name">multi-persona-code-review</div>
+    <div class="line">
+      Stalled and timed-out lanes still write a status file.
+    </div>
+    <div class="shown">
+      <div class="output">out/endless.json:  "status": "timed_out",</div>
+      <div class="output">out/silent.json:  "status": "stalled",</div>
+    </div>
+    <div class="foot">trycopilot.ai · agent skill · MIT</div>
+  </body>
+</html>

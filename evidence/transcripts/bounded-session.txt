@@ -1,0 +1,32 @@
+$ review() { python3 skills/multi-persona-code-review/scripts/run_bounded_review.py --cwd repo --name "$@"; }
+$ review finding --out out/finding.md --json-out out/finding.json -- sh ../agents/finding.sh
+$ echo "exit status: $?"
+exit status: 0
+$ review failing --out out/failing.md --json-out out/failing.json -- sh -c 'exit 3'
+$ echo "exit status: $?"
+exit status: 2
+$ review silent --out out/silent.md --json-out out/silent.json --idle-seconds 1 -- sleep 30
+$ echo "exit status: $?"
+exit status: 2
+$ review endless --out out/endless.md --json-out out/endless.json --timeout-seconds 2 --idle-seconds 1 -- sh ../agents/endless.sh
+$ echo "exit status: $?"
+exit status: 2
+$ grep '"status"' out/*.json
+out/endless.json:  "status": "timed_out",
+out/failing.json:  "status": "failed",
+out/finding.json:  "status": "completed",
+out/silent.json:  "status": "stalled",
+$ echo "exit status: $?"
+exit status: 0
+$ sed -n '/^status:/,/^- severity/p' out/finding.md
+status: findings
+findings:
+- severity: P2
+$ echo "exit status: $?"
+exit status: 0
+$ grep -E '^- (status|cwd|return_code)' out/silent.md
+- status: `stalled`
+- cwd: `/work/repo`
+- return_code: `-15`
+$ echo "exit status: $?"
+exit status: 0

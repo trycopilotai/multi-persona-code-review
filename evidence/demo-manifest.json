@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-08",
+  "skill": {
+    "path": "skills/multi-persona-code-review/SKILL.md",
+    "sha256": "e8a059349078419bac1574b7ce6e41f4a56b1a3007620a03799e55632fdde196"
+  },
+  "programs": [
+    {
+      "path": "skills/multi-persona-code-review/scripts/run_bounded_review.py",
+      "sha256": "b1dd81c7a8994ff9c215efa3ffb8f2670584c2ed3ccd1ec188f3738b3a3b4e47"
+    }
+  ],
+  "agent": {
+    "invoked_the_skill": false,
+    "note": "No agent session invoked the skill or ran a review to produce this evidence. scripts/record_session.py ran the bundled runner while this release was being prepared, with shell commands and two stand-in scripts in place of Codex and Claude Code."
+  },
+  "invocation": {
+    "commands": [
+      "review() { python3 skills/multi-persona-code-review/scripts/run_bounded_review.py --cwd repo --name \"$@\"; }",
+      "review finding --out out/finding.md --json-out out/finding.json -- sh ../agents/finding.sh",
+      "review failing --out out/failing.md --json-out out/failing.json -- sh -c 'exit 3'",
+      "review silent --out out/silent.md --json-out out/silent.json --idle-seconds 1 -- sleep 30",
+      "review endless --out out/endless.md --json-out out/endless.json --timeout-seconds 2 --idle-seconds 1 -- sh ../agents/endless.sh",
+      "grep '\"status\"' out/*.json",
+      "sed -n '/^status:/,/^- severity/p' out/finding.md",
+      "grep -E '^- (status|cwd|return_code)' out/silent.md"
+    ],
+    "interpreter": "Python 3.13.13",
+    "working_directory": "a throwaway directory holding, at the start, a copy of skills/, empty out/, tmp/ and home/ directories, bin/python3 linked to the recording interpreter, agents/finding.sh and agents/endless.sh written by scripts/record_session.py, and a git repository named repo with one commit of greet.py and one uncommitted change to it. agents/finding.sh prints one fixed finding in the persona output shape when repo has a diff, and status: no_findings otherwise; agents/endless.sh prints a line every quarter second and does not exit on its own. Each step after the first line ran in its own bash -c, preceded by the function definition on the first line, started with an environment that held only: PATH set to bin, /usr/bin and /bin, TMPDIR set to tmp/, HOME set to home/, LC_ALL=C, PYTHONDONTWRITEBYTECODE=1, GIT_CONFIG_GLOBAL set to /dev/null and GIT_CONFIG_NOSYSTEM=1 (repo keeps the local .git/config that git init creates), and the git author and committer Example <test@example.com>."
+  },
+  "output": {
+    "path": "evidence/transcripts/bounded-session.txt",
+    "sha256": "7d1f8a462a4c8ab90cc900ae1c38a1581179c9dfcf3f34944f96025ef210637e",
+    "edited": true,
+    "transforms": [
+      {
+        "name": "replace-capture-root",
+        "what": "The absolute path of the throwaway capture directory was replaced with /work by one string replacement in scripts/record_session.py. Nothing else was changed."
+      }
+    ],
+    "note": "scripts/record_session.py ran each step in its own bash -c, after the function definition, and when it finished wrote the step's command line, its combined stdout and stderr, and an exit status line built from its exit status. The echo lines were written by the recorder, not run."
+  }
+}

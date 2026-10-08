@@ -1,0 +1,7 @@
+interface:
+  display_name: "multi-persona-code-review"
+  short_description:
+    "Multi-persona bounded review"
+  default_prompt:
+    "Use $multi-persona-code-review to review the uncommitted
+    changes in this repository."
