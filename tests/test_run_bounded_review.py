@@ -672,6 +672,33 @@ class ProcessGroupTest(RunnerTestCase):
                 time.sleep(0.1)
         self.assertFalse(alive, "the child outlived the stalled lane")
 
+    def test_a_permission_error_from_killpg_means_the_group_is_gone(self) -> None:
+        # macOS can raise EPERM, not ESRCH, when the group's leader is
+        # a zombie. That must end the stop like ProcessLookupError does.
+        spec = importlib.util.spec_from_file_location("run_bounded_review", PROGRAM)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        process = mock.Mock(pid=12345)
+        process.poll.return_value = None
+        for error in (ProcessLookupError, PermissionError):
+            killpg = mock.Mock(side_effect=error)
+            with mock.patch.object(module.os, "killpg", killpg):
+                module.terminate_process(process)
+            killpg.assert_called_once_with(12345, signal.SIGTERM)
+            process.poll.assert_not_called()
+        signals = []
+
+        def killpg_after_term(pid: int, sig: int) -> None:
+            signals.append(sig)
+            if sig == signal.SIGKILL:
+                raise PermissionError(1, "Operation not permitted")
+
+        with mock.patch.object(module.os, "killpg", killpg_after_term), mock.patch.object(
+            module.time, "sleep"
+        ), mock.patch.object(module.time, "monotonic", side_effect=[0.0, 0.0, 10.0]):
+            module.terminate_process(process)
+        self.assertEqual(signals, [signal.SIGTERM, signal.SIGKILL])
+
 
 class UsageTest(RunnerTestCase):
     def usage(self, *arguments: str) -> subprocess.CompletedProcess:

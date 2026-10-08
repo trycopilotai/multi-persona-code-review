@@ -8,7 +8,7 @@
   "programs": [
     {
       "path": "skills/multi-persona-code-review/scripts/run_bounded_review.py",
-      "sha256": "b1dd81c7a8994ff9c215efa3ffb8f2670584c2ed3ccd1ec188f3738b3a3b4e47"
+      "sha256": "97af8c7cb4badb32facb3353b38f5bc7605e5b0bdb75424d0123670220313b6f"
     }
   ],
   "agent": {
@@ -40,5 +40,81 @@
       }
     ],
     "note": "scripts/record_session.py ran each step in its own bash -c, after the function definition, and when it finished wrote the step's command line, its combined stdout and stderr, and an exit status line built from its exit status. The echo lines were written by the recorder, not run."
-  }
+  },
+  "invocations": [
+    {
+      "product": "Claude Code",
+      "version": "2.1.220",
+      "model": "claude-sonnet-5",
+      "invocation": "/multi-persona-code-review",
+      "prompt": "Use the /multi-persona-code-review skill to review the uncommitted changes in the git repository ./repo: a small Python module, ledger/, and its unit tests in tests/. Run at most two persona lanes, and run them through the skill's bundled runner with small budgets. Write the runner's result files under ./out. Stay inside this directory: do not read, write or run anything outside it, except the skill's own files. Do not commit or push. Work autonomously; there is no operator available to answer questions during this run.",
+      "loaded_from": "a fresh depth-1 clone of this repository's tag v0.1.0 passed as --plugin-dir, the only other entry beside the workspace in a fresh temporary directory",
+      "fixture": "A synthetic workspace: a git repository, repo/, holding a small Python module (ledger/) and its unit tests in one commit, with an uncommitted change that adds parse_lenient, latest and total_debits and two tests; three defects were planted in that change (latest slices one entry too many, parse_lenient has no None check on the regex match, total_debits sums the positive amounts the module defines as credits), and all five tests pass with it. Beside repo/ is an empty out/ directory for the runner's result files. The workspace itself is a git repository that ignores repo/ and out/. No remote.",
+      "date": "2026-10-08",
+      "transcript": {
+        "path": "evidence/transcripts/2026-10-08-claude-code-invocation.txt",
+        "sha256": "ec7cebc5e59f35010eefc4bff92efa12271be10946d22b28899c6811dc004d28"
+      },
+      "raw_output_sha256": "812a0eba23d7cba0ba6a5b184bd3cdc708a37f63d553d92fb3cbaec06a4e213b",
+      "raw_output_format": "claude --print --verbose --output-format stream-json",
+      "transforms": [
+        "replace-isolation-root",
+        "replace-scratch-root",
+        "replace-plugin-root",
+        "replace-capture-root",
+        "replace-home",
+        "replace-hostname"
+      ],
+      "invoked_the_skill": true,
+      "published": true,
+      "outcome": "Loaded the skill with a Skill tool call and ran two smoke checks and two lanes (codex-baseline, claude-adversarial) through run_bounded_review.py; all four were recorded as failed (exit 127, the nested npx could not start either CLI), so it reviewed the diff itself as a recorded manual fallback, reproduced all three planted defects, wrote three TODO(code-review:<id>) comments above the three functions in ledger/entries.py, recorded the l8() lane as not_run because the l8 skill is not installed and left out the L9/L10 addendum, and committed nothing.",
+      "inaccuracies": [
+        "The agent attributes the failed lanes to no npm registry access, in its final message and in all three comments it wrote; the lanes' own output is 'sh: @openai/codex: No such file or directory' (and the same for @anthropic-ai/claude-code), because the nested npx inherited the npm_config_package setting of the npx command that launched the client.",
+        "The final message gives the findings' lines as ledger/entries.py:33, :44 and :61; after write-back the three functions start at lines 40, 57 and 73 and the markers sit at lines 30, 47 and 63."
+      ]
+    },
+    {
+      "product": "Codex",
+      "version": "0.146.0",
+      "model": "gpt-5.6-sol",
+      "model_source": "the client's session log for the same thread; the --json stream does not name the model",
+      "invocation": "$multi-persona-code-review",
+      "prompt": "Use the $multi-persona-code-review skill to review the uncommitted changes in the git repository ./repo: a small Python module, ledger/, and its unit tests in tests/. Run at most two persona lanes, and run them through the skill's bundled runner with small budgets. Write the runner's result files under ./out. Stay inside this directory: do not read, write or run anything outside it, except the skill's own files. Do not commit or push. Work autonomously; there is no operator available to answer questions during this run.",
+      "loaded_from": "a copy of skills/multi-persona-code-review/ at v0.1.0 committed in the workspace as .agents/skills/multi-persona-code-review/",
+      "pickup_source": "Codex placed the skill's SKILL.md in the conversation itself (its session log shows a <skill> block naming .agents/skills/multi-persona-code-review/SKILL.md); the transcript shows the agent then reading the skill's three reference files.",
+      "fixture": "A synthetic workspace: a git repository, repo/, holding a small Python module (ledger/) and its unit tests in one commit, with an uncommitted change that adds parse_lenient, latest and total_debits and two tests; three defects were planted in that change (latest slices one entry too many, parse_lenient has no None check on the regex match, total_debits sums the positive amounts the module defines as credits), and all five tests pass with it. Beside repo/ is an empty out/ directory for the runner's result files. The workspace itself is a git repository that ignores repo/ and out/. No remote. The vendored skill is a second commit of the workspace.",
+      "date": "2026-10-08",
+      "transcript": {
+        "path": "evidence/transcripts/2026-10-08-codex-invocation.txt",
+        "sha256": "7abe2ac12054da0bed4b29dade692b3c51ca553f27f68b53688241845fe3492a"
+      },
+      "raw_output_sha256": "f83c2f6b30262e3c6e270827c4dc5cf6f7441ada675be3d361d7730c08c6723e",
+      "raw_output_format": "codex exec --json",
+      "transforms": [
+        "replace-scratch-root",
+        "replace-plugin-root",
+        "replace-capture-root",
+        "replace-home",
+        "replace-hostname"
+      ],
+      "invoked_the_skill": true,
+      "published": true,
+      "outcome": "Read the skill's reference files and ran two lanes (codex-baseline, codex-adversarial) and one smaller retry through run_bounded_review.py under its workspace-write sandbox; all three were recorded as stalled with no output, so it reviewed the diff itself as a recorded manual fallback, reproduced all three planted defects, wrote three TODO(code-review:<id>) comments above the affected lines in ledger/entries.py, recorded the l8() lane as not_run because the l8 skill is not installed and printed one line in place of the L9/L10 addendum, and committed nothing."
+    },
+    {
+      "product": "Claude Code",
+      "version": "2.1.220",
+      "model": "claude-sonnet-5",
+      "invocation": "/multi-persona-code-review",
+      "loaded_from": "a local clone of tag v0.1.0 passed as --plugin-dir, with sibling checkouts of other repositories beside it",
+      "fixture": "A synthetic workspace: a git repository, repo/, holding a small Python module (ledger/) and its unit tests in one commit, with an uncommitted change that adds parse_lenient, latest and total_debits and two tests; three defects were planted in that change (latest slices one entry too many, parse_lenient has no None check on the regex match, total_debits sums the positive amounts the module defines as credits), and all five tests pass with it. Beside repo/ is an empty out/ directory for the runner's result files. The workspace itself is a git repository that ignores repo/ and out/. No remote.",
+      "date": "2026-10-08",
+      "published": false,
+      "published_note": "Its tool calls touched paths outside the workspace, the plugin directory and the client scratch directory, so it was re-run in isolation; no transcript is committed.",
+      "raw_output_sha256": "5b3c447e65a478e6274d9b390ff75046f50299a3ee2315f561dca0aab1bd7e4e",
+      "raw_output_format": "claude --print --verbose --output-format stream-json",
+      "invoked_the_skill": true,
+      "outcome": "Loaded the skill with a Skill tool call; while diagnosing its failed lanes it printed the npx launcher script and ran npx -y cowsay, outside the workspace although the prompt said to stay inside it; it recorded both lanes as failed, reviewed the diff itself as a manual fallback, wrote three TODO(code-review:<id>) comments for the three planted defects, recorded the l8() lane as not_run, and committed nothing."
+    }
+  ]
 }

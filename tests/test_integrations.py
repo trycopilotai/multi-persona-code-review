@@ -33,6 +33,14 @@ README = ROOT / "README.md"
 TRANSCRIPT = ROOT / "evidence" / "transcripts" / "bounded-session.txt"
 MANIFEST = ROOT / "evidence" / "demo-manifest.json"
 RECORDER = ROOT / "scripts" / "record_session.py"
+RENDERER = ROOT / "scripts" / "render_invocation.py"
+INVOCATION_TRANSFORMS = [
+    "replace-scratch-root",
+    "replace-plugin-root",
+    "replace-capture-root",
+    "replace-home",
+    "replace-hostname",
+]
 CLAIM = "Stalled and timed-out lanes still write a status file."
 STATUS_LINES = [
     'out/endless.json:  "status": "timed_out",',
@@ -303,8 +311,9 @@ class ReadmeTest(unittest.TestCase):
 
     def test_readme_says_what_was_not_measured(self) -> None:
         text = " ".join(read(README).split())
-        self.assertIn("No agent invoked the skill", text)
+        self.assertIn("No agent invoked the skill to produce the bounded session", text)
         self.assertIn("have not been measured", text)
+        self.assertNotIn("No agent invocation is recorded in this release", text)
 
     def test_demo_is_offered_with_a_reduced_motion_poster(self) -> None:
         text = read(README)
@@ -371,6 +380,141 @@ class EvidenceTest(unittest.TestCase):
         self.assertIn("`/work/repo`", text)
         for fragment in ("/var/folders", "/private/", "/Users/", "/home/"):
             self.assertNotIn(fragment, text)
+
+
+class InvocationTest(unittest.TestCase):
+    def records(self) -> list:
+        return json.loads(read(MANIFEST))["invocations"]
+
+    def published(self) -> list:
+        return [r for r in self.records() if r["published"]]
+
+    def test_one_published_invocation_per_client(self) -> None:
+        self.assertEqual(
+            sorted(r["product"] for r in self.published()), ["Claude Code", "Codex"]
+        )
+        for record in self.records():
+            self.assertIs(record["invoked_the_skill"], True)
+            self.assertRegex(record["raw_output_sha256"], r"^[0-9a-f]{64}$")
+            self.assertTrue(record["outcome"])
+            for note in record.get("inaccuracies", []):
+                self.assertTrue(note.strip())
+            if not record["published"]:
+                self.assertNotIn("transcript", record)
+                self.assertTrue(record["published_note"])
+
+    def test_published_transforms_are_declared_in_order(self) -> None:
+        for record in self.published():
+            transforms = [t for t in record["transforms"] if t != "replace-isolation-root"]
+            self.assertEqual(transforms, INVOCATION_TRANSFORMS)
+            if "replace-isolation-root" in record["transforms"]:
+                self.assertEqual(record["transforms"][0], "replace-isolation-root")
+
+    def test_invocation_text_matches_the_client(self) -> None:
+        forms = {"Claude Code": "/" + NAME, "Codex": "$" + NAME}
+        for record in self.records():
+            self.assertEqual(record["invocation"], forms[record["product"]])
+        for record in self.published():
+            self.assertIn(record["invocation"], record["prompt"])
+
+    def test_transcript_hashes_match_the_manifest(self) -> None:
+        listed = set()
+        for record in self.published():
+            path = ROOT / record["transcript"]["path"]
+            self.assertEqual(record["transcript"]["sha256"], sha256(path))
+            listed.add(path.name)
+            text = read(path)
+            self.assertIn(record["prompt"], text)
+            self.assertIn("\n## final message\n", text)
+        on_disk = {p.name for p in TRANSCRIPT.parent.glob("*-invocation.txt")}
+        self.assertEqual(listed, on_disk)
+
+    def test_each_transcript_shows_the_l8_lane_not_run(self) -> None:
+        for record in self.published():
+            final = read(ROOT / record["transcript"]["path"]).split("\n## final message\n")[1]
+            self.assertIn("not_run", final)
+            self.assertIn("l8", final)
+
+    def test_readme_links_each_transcript(self) -> None:
+        text = read(README)
+        for record in self.published():
+            self.assertIn("](" + record["transcript"]["path"] + ")", text)
+
+    def test_transcripts_name_only_the_replaced_roots(self) -> None:
+        absolute = re.compile(r"(?<![\w.~/])/(?:private|tmp|var|home|Users)/")
+        for path in TRANSCRIPT.parent.glob("*-invocation.txt"):
+            self.assertEqual(absolute.findall(read(path)), [], path.name)
+
+
+class RendererTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.module = load(RENDERER, "render_invocation")
+        self.transforms = self.module.Transforms(
+            "/h/u/fix", ["/h/u/fix/.agents/skills/" + NAME, "/h/u/clone"], "/h/u", "box.local"
+        )
+
+    def test_transforms_replace_whole_prefixes_in_order(self) -> None:
+        t = self.transforms
+        self.assertEqual(t("/h/u/fix/.agents/skills/%s/SKILL.md" % NAME), "/plugin/SKILL.md")
+        self.assertEqual(t("/h/u/clone/skills/x"), "/plugin/skills/x")
+        self.assertEqual(t("cd /h/u/fix && ls"), "cd /work && ls")
+        self.assertEqual(t("/h/u/fixture/a"), "~/fixture/a")
+        self.assertEqual(t("/h/u2/a"), "/h/u2/a")
+        self.assertEqual(t("/private/tmp/claude-0/-h-u-fix/t/out"), "/scratch/t/out")
+        self.assertEqual(t("on box.local and box"), "on host and host")
+        self.assertEqual(t("boxes"), "boxes")
+
+    def test_isolation_root_is_replaced_first(self) -> None:
+        t = self.module.Transforms(
+            "/iso/fixture", ["/iso/plugin"], "/h/u", "box", ["/t/iso.1", "/private/t/iso.1"]
+        )
+        self.assertEqual(t("/private/t/iso.1/fixture/repo/a.py"), "/work/repo/a.py")
+        self.assertEqual(t("/t/iso.1/plugin/skills/x"), "/plugin/skills/x")
+        self.assertEqual(t("/t/iso.1/other"), "/iso/other")
+        self.assertEqual(t("/t/iso.12/x"), "/t/iso.12/x")
+
+    def test_transforms_reach_string_values_but_not_keys(self) -> None:
+        event = {"/h/u/fix": ["/h/u/fix/a", {"k": "box.local"}], "n": 1}
+        self.assertEqual(
+            self.module.deep(event, self.transforms),
+            {"/h/u/fix": ["/work/a", {"k": "host"}], "n": 1},
+        )
+
+    def test_claude_code_log(self) -> None:
+        events = [
+            {"type": "system", "subtype": "init", "claude_code_version": "9.9.9", "model": "m"},
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "a", "name": "Bash",
+                 "input": {"command": "cat /h/u/fix/" + "x" * 500}}]}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "a", "is_error": True,
+                 "content": "Exit code 2\nboom"}]}},
+            {"type": "result", "subtype": "success", "num_turns": 2,
+             "duration_ms": 5, "total_cost_usd": 0.5, "result": "done\nok\n\n"},
+        ]
+        raw = "\n".join(json.dumps(e) for e in events)
+        text = self.module.render("claude-code", "Use /" + NAME + "\n", raw, self.transforms)
+        self.assertIn("model: m\n", text)
+        self.assertIn("## prompt\n\nUse /" + NAME + "\n\n## tool calls", text)
+        self.assertIn("    command: cat /work/" + "x" * 390 + " ...[", text)
+        self.assertIn("  < error (exit 2)\n", text)
+        self.assertTrue(text.endswith("## final message\n\ndone\nok\n"))
+
+    def test_codex_log(self) -> None:
+        events = [
+            {"type": "thread.started", "thread_id": "t"},
+            {"type": "item.completed", "item": {"type": "command_execution",
+             "command": "python3 /h/u/fix/r.py", "exit_code": 2}},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": "y" * 450}},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": "done"}},
+            {"type": "turn.completed", "usage": {"output_tokens": 3}},
+        ]
+        raw = "\n".join(json.dumps(e) for e in events)
+        text = self.module.render("codex", "Use $" + NAME, raw, self.transforms)
+        self.assertIn("    command: python3 /work/r.py\n  < exit 2\n", text)
+        self.assertIn("usage output_tokens: 3\n", text)
+        self.assertIn("agent: " + "y" * 400 + " ...[50 more characters]\n", text)
+        self.assertTrue(text.endswith("## final message\n\ndone\n"))
 
 
 class DemoTest(unittest.TestCase):

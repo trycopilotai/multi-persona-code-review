@@ -114,9 +114,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def terminate_process(process: subprocess.Popen[bytes]) -> None:
+    # macOS can answer EPERM instead of ESRCH when the group's
+    # leader is a zombie, so PermissionError is treated as gone.
     try:
         os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         return
 
     deadline = time.monotonic() + 5.0
@@ -127,7 +129,7 @@ def terminate_process(process: subprocess.Popen[bytes]) -> None:
 
     try:
         os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         return
 
 

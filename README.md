@@ -31,15 +31,22 @@ image leaves out the recorder's `echo` lines.
 
 **Not measured, stated up front.**
 
-- No agent invoked the skill to produce the evidence here,
-  and no Codex or Claude Code lane ran. The four lanes in
-  the transcript are shell commands and two stand-in
-  scripts, one of which prints a fixed finding.
-- Whether an agent that follows `SKILL.md` finds real
-  defects, how many of its findings are false positives,
-  and whether it writes back only comment lines have not
-  been measured.
+- No agent invoked the skill to produce the bounded session
+  behind the claim, and no Codex or Claude Code lane ran in
+  it. The four lanes in that transcript are shell commands
+  and two stand-in scripts, one of which prints a fixed
+  finding.
+- In the two agent invocations under Evidence, no nested
+  Codex or Claude Code lane produced a review: every lane
+  failed or stalled, and each agent reviewed the diff
+  itself.
+- How many of an agent's findings are false positives, and
+  whether the persona lanes themselves find real defects,
+  have not been measured.
 - Neither client was started from the install blocks below.
+  For the agent invocations, Claude Code loaded the
+  repository as a plugin directory and Codex loaded a
+  project copy under `.agents/skills/`.
 - The program and its tests were run on macOS before this
   release; no run on another system is recorded here. The
   CI workflow runs them on Linux. Windows was not tried,
@@ -212,7 +219,7 @@ fails.
 
 ```sh
 set -eu
-release=v0.1.0
+release=v0.1.1
 install_target="$HOME/.claude/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -249,7 +256,7 @@ the block above is `install_target`.
 
 ```sh
 set -eu
-release=v0.1.0
+release=v0.1.1
 install_target="$HOME/.agents/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -324,9 +331,52 @@ hard budget. The runner exits 2 for the last three, and a
 `grep` of the four JSON files shows `completed`, `failed`,
 `stalled` and `timed_out`.
 
-No agent invocation is recorded in this release. Nothing
-here shows a Codex or Claude Code session following
-`SKILL.md`.
+### Agent invocations
+
+Each client ran the skill once on a synthetic workspace: a
+git repository holding a small Python module with an
+uncommitted change that carries three planted defects (an
+off-by-one slice, a missing check that a regular expression
+matched, and a function named for debits that sums
+credits), and tests that pass. Each prompt asked for at
+most two persona lanes through the bundled runner. This is
+one run per client on one fixture, not a benchmark.
+
+- [`evidence/transcripts/2026-10-08-claude-code-invocation.txt`](evidence/transcripts/2026-10-08-claude-code-invocation.txt):
+  Claude Code 2.1.220 loaded the skill and ran two smoke
+  checks and two lanes through the runner. All four were
+  recorded as `failed`, because the nested `npx` could not
+  start either CLI. It then reviewed the diff itself as a
+  recorded fallback, wrote three `TODO(code-review:<id>)`
+  comments for the three planted defects, recorded the
+  l8() lane as `not_run` and left out the L9/L10 addendum.
+- [`evidence/transcripts/2026-10-08-codex-invocation.txt`](evidence/transcripts/2026-10-08-codex-invocation.txt):
+  Codex 0.146.0, in its `workspace-write` sandbox, ran two
+  lanes and one smaller retry through the runner. All three
+  were recorded as `stalled` with no output. It then did the
+  same fallback review, wrote three markers for the same
+  three defects, and recorded the l8() lane as `not_run`.
+
+Neither run committed anything, and in both the write-back
+added only comment lines. The `failed` lanes in the Claude
+Code run printed `sh: @openai/codex: No such file or
+directory` (and the same for Claude Code): the nested `npx`
+inherited the package setting of the `npx --package` command
+that launched the client. The agent's own account blames a
+missing npm registry, in its final message and in the
+comments it wrote, and gives line numbers that do not match
+the file; the transcript is not corrected, and the manifest
+lists both under `inaccuracies`. A first Claude Code run,
+whose diagnosis of the same failure ran commands outside the
+workspace, was replaced by a run in a fresh temporary
+directory; the manifest records it with `"published":
+false`. `scripts/render_invocation.py` rendered each
+transcript from the client's raw log, replacing only the
+prefixes the manifest names (`replace-isolation-root`,
+`replace-scratch-root`, `replace-plugin-root`,
+`replace-capture-root`, `replace-home`, `replace-hostname`),
+and clips each tool argument and each message between calls
+at 400 characters; tool results appear only as a status.
 
 `make check` runs the program's own tests and a packaging
 contract that ties this file, both plugin manifests, the
