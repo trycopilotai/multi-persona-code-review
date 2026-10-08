@@ -113,8 +113,10 @@ These are known limits, not findings:
   not signalled, so a background process it started keeps
   running. Each wake reads at most 1 MiB. Once the runner has
   seen the command exit, or has stopped it, it reads at most
-  1 MiB more and returns; anything written later is not
-  recorded.
+  1 MiB more and returns, after a stop once it has also
+  waited at most five seconds for the command to exit;
+  anything written later is not recorded. `duration_seconds`
+  is measured when it stops waiting.
 - The two result files are renamed into place one after the
   other, Markdown first. If the runner is interrupted or
   killed before the first rename, neither result file is

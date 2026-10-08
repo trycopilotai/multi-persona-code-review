@@ -243,7 +243,6 @@ def collect_output(
                 output_parts.append(output)
                 last_output_at = time.monotonic()
 
-    duration_seconds = time.monotonic() - started_at
     if stopped:
         # A process that may not be signalled can outlive SIGKILL;
         # the runner then stops waiting and records no exit code.
@@ -253,6 +252,9 @@ def collect_output(
             return_code = None
     else:
         return_code = process.wait()
+    # Measured after the last wait, so a stopped lane's duration
+    # includes the time spent stopping it.
+    duration_seconds = time.monotonic() - started_at
 
     if status == "completed" and return_code != 0:
         status = "failed"

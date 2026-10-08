@@ -3,12 +3,12 @@
   "date": "2026-10-08",
   "skill": {
     "path": "skills/multi-persona-code-review/SKILL.md",
-    "sha256": "2c67d2ab54eb709854478ab2cf75be7c88c33549cfe7fb54b01ffc196e0a8c38"
+    "sha256": "bf84a4cb356832c21707a1a6e0678c5311daa2041bdd5261d3b63f7e04153d10"
   },
   "programs": [
     {
       "path": "skills/multi-persona-code-review/scripts/run_bounded_review.py",
-      "sha256": "1d749ef4ae89539114378a597b8021f644202a1016a752677d37997e638f82f7"
+      "sha256": "d63980f2f438aaf9b473b59ab0d75d6078c0c6f5c6f4424f5b62fdcc14d1e527"
     }
   ],
   "agent": {
@@ -48,7 +48,7 @@
       "model": "claude-sonnet-5",
       "invocation": "/multi-persona-code-review",
       "prompt": "Use the /multi-persona-code-review skill to review the uncommitted changes in the git repository ./repo: a small Python module, ledger/, and its unit tests in tests/. Run at most two persona lanes, and run them through the skill's bundled runner with small budgets. Write the runner's result files under ./out. Stay inside this directory: do not read, write or run anything outside it, except the skill's own files. Do not commit or push. Work autonomously; there is no operator available to answer questions during this run.",
-      "loaded_from": "a copy, without .git, of this repository's working tree carrying the v0.1.3 changes before they were committed (its SKILL.md has the SHA-256 recorded under skill above), passed as --plugin-dir, the only other entry beside the workspace in a fresh temporary directory",
+      "loaded_from": "a copy, without .git, of this repository's working tree carrying the v0.1.3 changes before they were committed (its SKILL.md had SHA-256 2c67d2ab54eb709854478ab2cf75be7c88c33549cfe7fb54b01ffc196e0a8c38, the v0.1.3 and v0.1.4 SKILL.md; v0.1.5 changed its wording on version pinning, return_code and the outer time limit), passed as --plugin-dir, the only other entry beside the workspace in a fresh temporary directory",
       "fixture": "A synthetic workspace: a git repository, repo/, holding a small Python module (ledger/) and its unit tests in one commit, with an uncommitted change that adds parse_lenient, latest and total_debits and two tests; three defects were planted in that change (latest slices one entry too many, parse_lenient has no None check on the regex match, total_debits sums the positive amounts the module defines as credits), and all five tests pass with it. Beside repo/ is an empty out/ directory for the runner's result files. The workspace itself is a git repository that ignores repo/ and out/. No remote.",
       "date": "2026-10-08",
       "transcript": {

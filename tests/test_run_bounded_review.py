@@ -728,11 +728,16 @@ class ProcessGroupTest(RunnerTestCase):
         with mock.patch.object(module.os, "killpg", refused), mock.patch.object(
             process, "send_signal", refused
         ), mock.patch.object(module, "STOP_WAIT_SECONDS", 0.5):
-            status, _output, _duration, return_code = module.collect_output(process, 30, 0.5)
+            status, _output, duration, return_code = module.collect_output(process, 30, 0.5)
+        elapsed = time.monotonic() - started
         self.assertEqual(status, "stalled")
         self.assertIsNone(return_code)
-        self.assertLess(time.monotonic() - started, 10)
+        self.assertLess(elapsed, 10)
         self.assertIsNone(process.poll())
+        # The idle budget, the wait after SIGTERM and the wait after
+        # SIGKILL, each 0.5 seconds here, are all in the duration.
+        self.assertGreaterEqual(duration, 1.5)
+        self.assertLessEqual(duration, elapsed)
 
 
 class UsageTest(RunnerTestCase):

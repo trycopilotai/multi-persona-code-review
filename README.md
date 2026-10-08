@@ -91,9 +91,10 @@ The runner wakes at least every half second and at each
 budget's deadline, and reads at most 1 MiB (1,048,576
 bytes) of output per wake, so a lane that writes without
 pause is still timed out. Once it has seen the command exit,
-or has stopped it, it reads at most 1 MiB more and returns,
-so a background process that keeps writing does not hold
-it either; a wake between the exit and the runner seeing it
+or has stopped it, it reads at most 1 MiB more and returns
+(after a stop, once it has also waited at most five seconds
+for the command to exit), so a background process that keeps
+writing does not hold it either; a wake between the exit and the runner seeing it
 is a normal capped read, and output written after the last
 read is not recorded. A deadline that has
 passed by the time the runner sees the command exit decides
@@ -109,7 +110,8 @@ running five seconds after `SIGKILL`, for example because
 the runner may not signal it at all, the runner stops
 waiting, leaves it running, and records `return_code` as
 `null` in the JSON file. A lane can therefore run several
-seconds past its budget, and `duration_seconds` includes
+seconds past its budget. `duration_seconds` is measured when
+the runner stops waiting for the command, so it includes
 that time.
 
 ## What is in it
@@ -233,7 +235,7 @@ fails.
 
 ```sh
 set -eu
-release=v0.1.4
+release=v0.1.5
 install_target="$HOME/.claude/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -270,7 +272,7 @@ the block above is `install_target`.
 
 ```sh
 set -eu
-release=v0.1.4
+release=v0.1.5
 install_target="$HOME/.agents/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -344,6 +346,10 @@ fourth prints a line every quarter second with a two-second
 hard budget. The runner exits 2 for the last three, and a
 `grep` of the four JSON files shows `completed`, `failed`,
 `stalled` and `timed_out`.
+
+`make check` runs the program's own tests and a packaging
+contract that ties this file, both plugin manifests, the
+transcript and the demo images to each other.
 
 ### Agent invocations
 
@@ -438,12 +444,8 @@ directory.
   the working tree before the release commit, not from the
   tag.
 - A nested `npx` uses npm's cache, by default in the home
-  directory, so a lane reads and writes outside the workspace even when
-  the agent's own tool calls stay inside it.
-
-`make check` runs the program's own tests and a packaging
-contract that ties this file, both plugin manifests, the
-transcript and the demo images to each other.
+  directory, so a lane reads and writes outside the workspace
+  even when the agent's own tool calls stay inside it.
 
 ## Contributing
 

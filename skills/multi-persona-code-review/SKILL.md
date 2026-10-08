@@ -38,8 +38,10 @@ command with `env -u npm_config_package`:
 `env -u npm_config_package npx -y @openai/codex ...` for
 Codex and
 `env -u npm_config_package npx -y @anthropic-ai/claude-code ...`
-for Claude Code. This pins every run to the npm package
-rather than whatever binary is on PATH. The `env -u` prefix
+for Claude Code. This runs the CLI from its npm package
+rather than whatever binary is on PATH, but pins no version:
+none of the commands below names one, so `npx` runs the
+release npm serves that day. The `env -u` prefix
 is there because an `npx --package ...` parent process, such
 as one that launched the agent client, leaks
 `npm_config_package` to everything it starts, and a nested
@@ -105,7 +107,8 @@ JSON artifact with:
 - `duration_seconds`
 - `timeout_seconds`
 - `idle_seconds`
-- `return_code`
+- `return_code` (`null` in the JSON, `None` in the
+  Markdown, when a stopped lane outlives the last wait)
 - `output`
 
 Wrapper `status` is one of:
@@ -131,7 +134,7 @@ and writes no artifact; record that lane as `failed` with
 the traceback's last line.
 
 Give the shell call that runs the runner its own time limit
-above the lane's hard budget plus about ten seconds, or run
+above the lane's hard budget plus about fifteen seconds, or run
 it in the background. If the runner itself is interrupted
 or killed before it renames the result files into place, it
 leaves no new artifact and the lane can keep running;
