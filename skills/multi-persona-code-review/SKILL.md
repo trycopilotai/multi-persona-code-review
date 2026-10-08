@@ -33,19 +33,28 @@ caller may request report-only to suppress all writes.
 ## Invocation
 
 Always invoke the `codex` and `claude-code` CLIs through
-`npx`, never a native PATH binary: `npx -y @openai/codex ...`
-for Codex and `npx -y @anthropic-ai/claude-code ...` for
-Claude Code. This pins every run to the npm package rather
-than
-whatever binary is on PATH. The command examples below use
-this form; keep it for every invocation.
+`npx`, never a native PATH binary, and start each such
+command with `env -u npm_config_package`:
+`env -u npm_config_package npx -y @openai/codex ...` for
+Codex and
+`env -u npm_config_package npx -y @anthropic-ai/claude-code ...`
+for Claude Code. This pins every run to the npm package
+rather than whatever binary is on PATH. The `env -u` prefix
+is there because an `npx --package ...` parent process, such
+as one that launched the agent client, leaks
+`npm_config_package` to everything it starts, and a nested
+`npx` that inherits it tries to run the package name as a
+command and fails. The bundled runner passes its own
+environment to the lane unchanged, so the prefix belongs in
+the lane command. The command examples below use this form;
+keep it for every invocation.
 
 Before the first Claude-engine pass in a session, run a cheap
 smoke check from the target repo root:
 
 ```sh
-npx -y @anthropic-ai/claude-code --version
-npx -y @anthropic-ai/claude-code -p "Reply with exactly: ok"
+env -u npm_config_package npx -y @anthropic-ai/claude-code --version
+env -u npm_config_package npx -y @anthropic-ai/claude-code -p "Reply with exactly: ok"
 ```
 
 These two commands are shown bare and run unbounded. To
@@ -220,19 +229,19 @@ under "Running the passes".
   untracked changes.
 
   ```text
-  npx -y @openai/codex review --uncommitted
+  env -u npm_config_package npx -y @openai/codex review --uncommitted
   ```
 
 - Branch diff against a base:
 
   ```text
-  npx -y @openai/codex review --base main
+  env -u npm_config_package npx -y @openai/codex review --base main
   ```
 
 - A single commit:
 
   ```text
-  npx -y @openai/codex review --commit <sha>
+  env -u npm_config_package npx -y @openai/codex review --commit <sha>
   ```
 
 ## Persona roster
@@ -292,7 +301,7 @@ take different forms.
     --json-out <out-dir>/codex-baseline.bounded.json \
     --timeout-seconds 240 \
     --idle-seconds 60 \
-    -- npx -y @openai/codex --yolo \
+    -- env -u npm_config_package npx -y @openai/codex --yolo \
       exec review --uncommitted -o <out-dir>/codex-baseline.md
   ```
 
@@ -311,7 +320,7 @@ take different forms.
     --json-out <out-dir>/codex-security.bounded.json \
     --timeout-seconds 180 \
     --idle-seconds 60 \
-    -- npx -y @openai/codex --yolo \
+    -- env -u npm_config_package npx -y @openai/codex --yolo \
     exec -o <out-dir>/codex-security.md \
     "Run \`git diff HEAD\` and inspect untracked files, then
      review ONLY the uncommitted working-tree changes as
@@ -324,7 +333,8 @@ take different forms.
   structured return), not the streamed trace.
 
 - **Claude-engine persona:** run a read-only review subagent
-  or `npx -y @anthropic-ai/claude-code` invocation through
+  or `env -u npm_config_package npx -y @anthropic-ai/claude-code`
+  invocation through
   the bounded runner. The prompt gets the persona brief and
   the same diff scope, with tools limited to reading and
   searching — never editing. Prefer a bounded prompt that
@@ -343,7 +353,7 @@ take different forms.
     --json-out <out-dir>/claude-architecture.bounded.json \
     --timeout-seconds 180 \
     --idle-seconds 60 \
-    -- npx -y @anthropic-ai/claude-code \
+    -- env -u npm_config_package npx -y @anthropic-ai/claude-code \
       -p "<diff-bounded architecture review prompt>"
   ```
 

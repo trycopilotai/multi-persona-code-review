@@ -18,9 +18,11 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import struct
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -56,6 +58,25 @@ REFERENCES = (
 OPT_IN_INPUTS = ("cuj_doc", "plan_doc", "compliance_doc")
 MARKER = "TODO(code-review:<id>)"
 REPOSITORY = "https://github.com/trycopilotai/" + NAME
+NPX_PREFIX = "env -u npm_config_package npx "
+# What an `npx --package <pkg> -- <bin>` launcher leaves in the
+# environment of everything it starts.
+LEAKED = {"npm_config_package": "@anthropic-ai/claude-code@2.1.220"}
+# Stands in for npx, so the test needs no network. With
+# npm_config_package set, npx runs its first non-option argument as
+# a command; a nested npx in a recorded agent run printed this line
+# and exited 127.
+STUB_NPX = """#!/bin/sh
+if [ -n "${npm_config_package+set}" ]; then
+  for word in "$@"; do
+    case "$word" in
+      -*) ;;
+      *) echo "sh: $word: No such file or directory" >&2; exit 127 ;;
+    esac
+  done
+fi
+echo "stub npx ran: $*"
+"""
 
 
 def read(path: Path) -> str:
@@ -129,6 +150,26 @@ def interface_yaml(text: str) -> dict:
             raise AssertionError(name + " is not a double-quoted scalar")
         fields[name] = value[1:-1]
     return fields
+
+
+def documented_npx_commands() -> list:
+    """Each line of a fenced block in SKILL.md that calls npx."""
+    blocks = re.findall(r"```(?:sh|text)\n(.*?)```", read(SKILL), flags=re.S)
+    return [
+        line.strip()
+        for block in blocks
+        for line in block.splitlines()
+        if re.search(r"\bnpx\b", line)
+    ]
+
+
+def documented_lane(name: str) -> list:
+    """The command after `--` in the SKILL.md runner block for `name`."""
+    for block in re.findall(r"```sh\n(.*?)```", read(SKILL), flags=re.S):
+        if "--name %s \\\n" % name in block:
+            joined = block.replace("\\\n", " ")
+            return shlex.split(joined.split(" -- ", 1)[1])
+    raise AssertionError("no runner block for " + name)
 
 
 def install_blocks() -> list:
@@ -515,6 +556,81 @@ class RendererTest(unittest.TestCase):
         self.assertIn("usage output_tokens: 3\n", text)
         self.assertIn("agent: " + "y" * 400 + " ...[50 more characters]\n", text)
         self.assertTrue(text.endswith("## final message\n\ndone\n"))
+
+
+class NpxEnvironmentTest(unittest.TestCase):
+    """A lane started under a parent that leaked npm_config_package."""
+
+    def test_every_documented_npx_command_drops_the_leaked_package(self) -> None:
+        commands = documented_npx_commands()
+        # Two smoke checks, three scope fragments, three runner lanes.
+        self.assertEqual(len(commands), 8)
+        for line in commands:
+            if line.startswith("-- "):
+                line = line[3:]
+            self.assertTrue(line.startswith(NPX_PREFIX), line)
+        # The README's evidence sections quote a bare npx on purpose;
+        # the part before them describes the commands to run.
+        for name, text in (
+            ("SKILL.md", read(SKILL)),
+            ("README.md", read(README).split("\n## Evidence\n")[0]),
+        ):
+            bare = re.findall(r"(?<!npm_config_package )npx -y", text)
+            self.assertEqual(bare, [], name)
+
+    def run_lane(self, command: list) -> dict:
+        with tempfile.TemporaryDirectory() as scratch:
+            bin_dir = Path(scratch) / "bin"
+            bin_dir.mkdir()
+            npx = bin_dir / "npx"
+            npx.write_text(STUB_NPX, encoding="utf-8")
+            npx.chmod(0o755)
+            env = dict(os.environ, **LEAKED)
+            env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+            record = Path(scratch) / "out" / "lane.json"
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(PROGRAM),
+                    "--name",
+                    "lane",
+                    "--cwd",
+                    scratch,
+                    "--out",
+                    str(Path(scratch) / "out" / "lane.md"),
+                    "--json-out",
+                    str(record),
+                    "--timeout-seconds",
+                    "30",
+                    "--idle-seconds",
+                    "30",
+                    "--",
+                    *command,
+                ],
+                env=env,
+                capture_output=True,
+                timeout=60,
+            )
+            return json.loads(record.read_text(encoding="utf-8"))
+
+    def test_the_documented_commands_complete(self) -> None:
+        smoke = [c for c in documented_npx_commands() if c.startswith(NPX_PREFIX + "-y @anthropic-ai/")]
+        self.assertEqual(len(smoke), 2)
+        lanes = [shlex.split(line) for line in smoke]
+        lanes.append(documented_lane("claude-architecture"))
+        self.assertEqual(lanes[-1][:4], ["env", "-u", "npm_config_package", "npx"])
+        for command in lanes:
+            with self.subTest(command=command):
+                record = self.run_lane(command)
+                self.assertEqual(record["status"], "completed")
+                self.assertEqual(record["return_code"], 0)
+                self.assertIn("stub npx ran: " + " ".join(command[4:]), record["output"])
+
+    def test_the_runner_passes_the_leaked_variable_to_a_bare_npx(self) -> None:
+        record = self.run_lane(["npx", "-y", "@anthropic-ai/claude-code", "--version"])
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["return_code"], 127)
+        self.assertIn("sh: @anthropic-ai/claude-code: No such file or directory", record["output"])
 
 
 class DemoTest(unittest.TestCase):

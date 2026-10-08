@@ -36,13 +36,14 @@ image leaves out the recorder's `echo` lines.
   it. The four lanes in that transcript are shell commands
   and two stand-in scripts, one of which prints a fixed
   finding.
-- In the two agent invocations under Evidence, no nested
-  Codex or Claude Code lane produced a review: every lane
-  failed or stalled, and each agent reviewed the diff
-  itself.
+- In the Codex invocation under Evidence, no nested lane
+  produced a review: every lane stalled, and the agent
+  reviewed the diff itself. In the Claude Code invocation,
+  one Codex lane and one Claude Code lane completed; that is
+  one run on one fixture.
 - How many of an agent's findings are false positives, and
-  whether the persona lanes themselves find real defects,
-  have not been measured.
+  how well the persona lanes find real defects beyond the
+  three planted in that fixture, have not been measured.
 - Neither client was started from the install blocks below.
   For the agent invocations, Claude Code loaded the
   repository as a plugin directory and Codex loaded a
@@ -140,10 +141,17 @@ includes that time.
   that waits for input reads end-of-file at once.
 
 The persona passes themselves run on Codex
-(`npx -y @openai/codex`) or Claude Code
-(`npx -y @anthropic-ai/claude-code`), as `SKILL.md`
-describes. The runner does not choose or check the command;
-it runs whatever follows `--`.
+(`env -u npm_config_package npx -y @openai/codex`) or
+Claude Code
+(`env -u npm_config_package npx -y @anthropic-ai/claude-code`),
+as `SKILL.md` describes. The `env -u` prefix removes
+`npm_config_package`, which an `npx --package ...` parent
+process, such as one that launched the agent client, leaks
+to everything it starts; a nested `npx` that inherits it
+tries to run the package name as a command and fails. The
+runner does not choose or check the command; it runs
+whatever follows `--` with the runner's own environment,
+unchanged.
 
 ### Opt-in personas
 
@@ -219,7 +227,7 @@ fails.
 
 ```sh
 set -eu
-release=v0.1.2
+release=v0.1.3
 install_target="$HOME/.claude/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -256,7 +264,7 @@ the block above is `install_target`.
 
 ```sh
 set -eu
-release=v0.1.2
+release=v0.1.3
 install_target="$HOME/.agents/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -333,52 +341,99 @@ hard budget. The runner exits 2 for the last three, and a
 
 ### Agent invocations
 
-Each client has one published run of the skill at v0.1.0
-on a synthetic workspace: a git repository holding a small Python module with an
-uncommitted change that carries three planted defects (an
-off-by-one slice, a missing check that a regular expression
-matched, and a function named for debits that sums
-credits), and tests that pass. Each prompt asked for at
-most two persona lanes through the bundled runner. This is
-one published run per client on one fixture, not a
-benchmark; Claude Code also has one unpublished run,
-described below.
+Each client has one published run of the skill on a
+synthetic workspace: a git repository holding a small Python
+module with an uncommitted change that carries three planted
+defects (an off-by-one slice, a missing check that a regular
+expression matched, and a function named for debits that
+sums credits), and tests that pass. Each prompt asked for at
+most two persona lanes through the bundled runner with small
+budgets. This is one published run per client on one
+fixture, not a benchmark.
 
 - [`evidence/transcripts/2026-10-08-claude-code-invocation.txt`](evidence/transcripts/2026-10-08-claude-code-invocation.txt):
-  Claude Code 2.1.220 loaded the skill and ran two smoke
-  checks and two lanes through the runner. All four were
-  recorded as `failed`, because the nested `npx` could not
-  start either CLI. It then reviewed the diff itself as a
-  recorded fallback, wrote three `TODO(code-review:<id>)`
-  comments for the three planted defects, recorded the
+  Claude Code 2.1.220, with the v0.1.3 skill, loaded the
+  skill and ran two smoke checks, a Codex version probe and
+  two persona lanes through the runner, each command
+  starting with `env -u npm_config_package`. All five were
+  recorded as `completed`. The lanes were `codex-baseline`
+  (`codex exec review --uncommitted`) and
+  `claude-test-coverage` (`claude -p` with the diff in the
+  prompt), and each returned findings for the three planted
+  defects. The agent checked them against the source, wrote
+  three `TODO(code-review:<id>)` comments, recorded the
   l8() lane as `not_run` and left out the L9/L10 addendum.
 - [`evidence/transcripts/2026-10-08-codex-invocation.txt`](evidence/transcripts/2026-10-08-codex-invocation.txt):
-  Codex 0.146.0, in its `workspace-write` sandbox, ran two
-  lanes and one smaller retry through the runner. All three
-  were recorded as `stalled` with no output. It then did the
-  same fallback review, wrote three markers for the same
-  three defects, and recorded the l8() lane as `not_run`.
+  Codex 0.146.0, with the v0.1.0 skill, in its
+  `workspace-write` sandbox, ran two lanes and one smaller
+  retry through the runner. All three were recorded as
+  `stalled` with no output. It then reviewed the diff
+  itself as a recorded fallback, wrote three markers for the
+  same three defects, and recorded the l8() lane as
+  `not_run`.
 
 Neither run committed anything, and in both the write-back
-added only comment lines. The `failed` lanes in the Claude
-Code run printed `sh: @openai/codex: No such file or
-directory` (and the same for Claude Code): the nested `npx`
-inherited the package setting of the `npx --package` command
-that launched the client. The agent's own account blames a
-missing npm registry, in its final message and in the
-comments it wrote, and gives line numbers that do not match
-the file; the transcript is not corrected, and the manifest
-lists both under `inaccuracies`. A first Claude Code run,
-whose diagnosis of the same failure ran commands outside the
-workspace, was replaced by a run in a fresh temporary
-directory; the manifest records it with `"published":
-false`. `scripts/render_invocation.py` rendered each
-transcript from the client's raw log, replacing only the
-prefixes the manifest names (`replace-isolation-root`,
-`replace-scratch-root`, `replace-plugin-root`,
-`replace-capture-root`, `replace-home`, `replace-hostname`),
-and clips each tool argument and each message between calls
-at 400 characters; tool results appear only as a status.
+added only comment lines. The Claude Code run's final
+message gives the findings' line numbers as they were before
+write-back; the manifest notes this.
+
+`scripts/render_invocation.py` rendered each transcript from
+the client's raw log. Its edits are these, and no others:
+
+- it replaces only the path prefixes and host name the
+  manifest names, in this order: `replace-isolation-root`,
+  `replace-scratch-root`, `replace-plugin-root`,
+  `replace-capture-root`, `replace-home`,
+  `replace-hostname`;
+- it prints each tool argument and each message the agent
+  wrote between calls on one line, JSON-escaped, and clips
+  it at 400 characters with a note of how many were cut;
+- it trims trailing newlines from the prompt and from the
+  final message;
+- it prints each tool result only as a status, a Codex item
+  of an unknown type only by its type name, and leaves out
+  the rest of the log: in a Claude Code log, thinking
+  blocks, empty text blocks, user content other than tool
+  results, and every event other than `system` `init`,
+  `assistant`, `user` and `result`; in a Codex log, every
+  event other than `thread.started`, `item.completed` and
+  `turn.completed`.
+
+The manifest also lists two Claude Code runs with
+`"published": false`, each with the SHA-256 of its raw log:
+the v0.1.0 run published in v0.1.1 and v0.1.2, whose four
+lanes were all recorded as `failed` because the nested `npx`
+printed `sh: @openai/codex: No such file or directory` (and
+the same for Claude Code); and, before it, a run whose
+diagnosis of the same failure ran commands outside the
+workspace and was replaced by a run in a fresh temporary
+directory.
+
+### Known limits
+
+- The cause of the stalled Codex lanes was not established.
+  The Codex session log records its sandbox as
+  `workspace-write` with `network_access: false`. In a
+  separate check, not part of the recorded run, Codex
+  0.146.0's `codex sandbox -P :workspace` ran
+  `npx -y @openai/codex --version`, with and without the
+  `env -u npm_config_package` prefix. Both failed with an
+  npm network error after about 70 seconds; with the prefix,
+  the first output, npm's `ENOTFOUND`, came after about 71
+  seconds of silence.
+  That is consistent with a lane that stalls without
+  network, but the Codex run has not been repeated with this
+  release.
+- The documented lane commands run `npx -y` without a
+  version, so a lane gets whatever release npm serves that
+  day. In the Claude Code run they were Claude Code 2.1.295
+  and Codex 0.162.0, not the 2.1.220 that ran the agent.
+- The Claude Code run loaded the v0.1.3 files from a copy of
+  the working tree before the release commit, not from the
+  tag.
+- A nested `npx` uses npm's cache, by default in the home
+  directory, so a lane reads and writes outside the workspace even when
+  the agent's own tool calls stay inside it.
 
 `make check` runs the program's own tests and a packaging
 contract that ties this file, both plugin manifests, the
