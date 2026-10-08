@@ -219,7 +219,7 @@ fails.
 
 ```sh
 set -eu
-release=v0.1.1
+release=v0.1.2
 install_target="$HOME/.claude/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -256,7 +256,7 @@ the block above is `install_target`.
 
 ```sh
 set -eu
-release=v0.1.1
+release=v0.1.2
 install_target="$HOME/.agents/skills/multi-persona-code-review"
 install_parent="$(dirname "$install_target")"
 mkdir -p "$install_parent"
@@ -333,14 +333,16 @@ hard budget. The runner exits 2 for the last three, and a
 
 ### Agent invocations
 
-Each client ran the skill once on a synthetic workspace: a
-git repository holding a small Python module with an
+Each client has one published run of the skill at v0.1.0
+on a synthetic workspace: a git repository holding a small Python module with an
 uncommitted change that carries three planted defects (an
 off-by-one slice, a missing check that a regular expression
 matched, and a function named for debits that sums
 credits), and tests that pass. Each prompt asked for at
 most two persona lanes through the bundled runner. This is
-one run per client on one fixture, not a benchmark.
+one published run per client on one fixture, not a
+benchmark; Claude Code also has one unpublished run,
+described below.
 
 - [`evidence/transcripts/2026-10-08-claude-code-invocation.txt`](evidence/transcripts/2026-10-08-claude-code-invocation.txt):
   Claude Code 2.1.220 loaded the skill and ran two smoke

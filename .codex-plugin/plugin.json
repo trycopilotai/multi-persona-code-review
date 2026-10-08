@@ -1,6 +1,6 @@
 {
   "name": "multi-persona-code-review",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A multi-persona code review skill for Claude Code and Codex. It tells the agent to run each external CLI persona lane through a bundled runner with hard and idle timeouts, to take subagent lanes from the host's own result mechanism, and to write verified findings back as TODO(code-review:<id>) comments.",
   "author": {
     "name": "trycopilot.ai"
