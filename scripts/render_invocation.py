@@ -138,7 +138,9 @@ def render_claude_code(events):
                 if block.get("type") == "tool_use":
                     depth_of[block["id"]] = depth
                     tag = "[subagent] " if parent else ""
-                    body.extend(call_lines(tag + block["name"], block.get("input", {}), depth))
+                    body.extend(
+                        call_lines(tag + block["name"], block.get("input", {}), depth)
+                    )
                 elif block.get("type") == "text" and block.get("text", "").strip():
                     pad = "  " * depth
                     tag = "[subagent] " if parent else ""
@@ -178,18 +180,29 @@ def render_codex(events):
             item = event["item"]
             itype = item.get("type")
             if itype == "command_execution":
-                body.extend(call_lines("command_execution", {"command": item["command"]}, 0))
+                body.extend(
+                    call_lines("command_execution", {"command": item["command"]}, 0)
+                )
                 body.append("  < exit %s" % item.get("exit_code"))
             elif itype == "file_change":
-                changes = [c.get("kind", "") + " " + c.get("path", "") for c in item.get("changes", [])]
-                body.extend(call_lines("file_change", {"changes": "; ".join(changes)}, 0))
+                changes = [
+                    c.get("kind", "") + " " + c.get("path", "")
+                    for c in item.get("changes", [])
+                ]
+                body.extend(
+                    call_lines("file_change", {"changes": "; ".join(changes)}, 0)
+                )
                 body.append("  < " + str(item.get("status")))
             elif itype == "agent_message":
                 final = item.get("text", "")
                 body.append("agent: " + clip(final))
             elif itype == "todo_list":
-                done = sum(1 for entry in item.get("items", []) if entry.get("completed"))
-                body.append("todo_list: %d of %d done" % (done, len(item.get("items", []))))
+                done = sum(
+                    1 for entry in item.get("items", []) if entry.get("completed")
+                )
+                body.append(
+                    "todo_list: %d of %d done" % (done, len(item.get("items", [])))
+                )
             else:
                 body.extend(call_lines(str(itype), {}, 0))
     return header, body, final
@@ -213,7 +226,9 @@ def deep(value, transforms):
 
 
 def render(client, prompt, raw, transforms):
-    events = [deep(json.loads(line), transforms) for line in raw.splitlines() if line.strip()]
+    events = [
+        deep(json.loads(line), transforms) for line in raw.splitlines() if line.strip()
+    ]
     header, body, final = RENDERERS[client](events)
     prompt = transforms(prompt)
     out = ["client: " + client, *header, "", "## prompt", "", prompt.rstrip("\n"), ""]
@@ -240,7 +255,11 @@ def main(argv=None):
     parser.add_argument("raw", type=Path)
     args = parser.parse_args(argv)
     transforms = Transforms(
-        args.capture_root, args.plugin_root, args.home, args.hostname, args.isolation_root
+        args.capture_root,
+        args.plugin_root,
+        args.home,
+        args.hostname,
+        args.isolation_root,
     )
     text = render(
         args.client,

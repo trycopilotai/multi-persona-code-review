@@ -6,9 +6,9 @@ source, and write the findings that hold up back into the
 code as `TODO(code-review:<id>)` comments, or into a
 `CODE_REVIEW.gpt.md` queue where a comment does not fit. It
 ships one program, `run_bounded_review.py`, which runs one
-persona
-lane under a hard and an idle timeout and writes a result
-file when the lane completes, fails, stalls or times out.
+persona lane under a hard and an idle timeout and writes a
+result file when the lane completes, fails, stalls or times
+out.
 
 Stalled and timed-out lanes still write a status file.
 
@@ -49,70 +49,67 @@ image leaves out the recorder's `echo` lines.
   repository as a plugin directory and Codex loaded a
   project copy under `.agents/skills/`.
 - The program and its tests were run on macOS before this
-  release; no run on another system is recorded here. The
-  CI workflow runs them on Linux. Windows was not tried,
-  and the program uses POSIX process groups.
+  release; no run on another system is recorded here. The CI
+  workflow runs them on Linux. Windows was not tried, and
+  the program uses POSIX process groups.
 
 ## What the claim means
 
 "Stalled" is the runner's word for a lane that printed
 nothing for `--idle-seconds`; "timed out" is a lane still
-running at `--timeout-seconds`. A lane whose exit the
-runner sees only after one of those deadlines is recorded
-the same way. The "status file" is the
-Markdown file at `--out`, plus the JSON file at
-`--json-out` when that option is given; both carry a
-`status` field. The claim does not cover a command that
-cannot be started at all, such as a missing executable or a
-missing `--cwd`: the runner then stops with a Python
-traceback and writes no result file. Before the command
-runs, the runner resolves and checks both result paths: it
-creates their parent directories and checks that it can
-create a file beside each. Any failure in that step,
+running at `--timeout-seconds`. A lane whose exit the runner
+sees only after one of those deadlines is recorded the same
+way. The "status file" is the Markdown file at `--out`, plus
+the JSON file at `--json-out` when that option is given;
+both carry a `status` field. The claim does not cover a
+command that cannot be started at all, such as a missing
+executable or a missing `--cwd`: the runner then stops with
+a Python traceback and writes no result file. Before the
+command runs, the runner resolves and checks both result
+paths: it creates their parent directories and checks that
+it can create a file beside each. Any failure in that step,
 including an error from the file system such as a name that
 is too long or a symlink loop, exits `2` with a "cannot
 write" error and runs nothing; directories it created may
 stay. That check is best effort. The claim does not cover a
 write that fails after the command ran, for example on a
-full disk or where an existing file cannot be replaced.
-Both files are written to temporary files and then renamed
-into place, Markdown first. A failure or an interruption,
-for example Ctrl-C or an agent tool's own time limit, has
-one of three outcomes. Before the first rename, neither
-result file is created or changed. Between the two renames,
-the Markdown file is new and the JSON file is not. After
-both, both are new. A runner killed outright can leave a
-`.rbr-*.tmp` file beside them, and the lane, which runs in
-its own session, can keep running. `SKILL.md` tells the
-agent to give that tool call a limit above the lane's
-budget.
+full disk or where an existing file cannot be replaced. Both
+files are written to temporary files and then renamed into
+place, Markdown first. A failure or an interruption, for
+example Ctrl-C or an agent tool's own time limit, has one of
+three outcomes. Before the first rename, neither result file
+is created or changed. Between the two renames, the Markdown
+file is new and the JSON file is not. After both, both are
+new. A runner killed outright can leave a `.rbr-*.tmp` file
+beside them, and the lane, which runs in its own session,
+can keep running. `SKILL.md` tells the agent to give that
+tool call a limit above the lane's budget.
 
 The runner wakes at least every half second and at each
-budget's deadline, and reads at most 1 MiB (1,048,576
-bytes) of output per wake, so a lane that writes without
-pause is still timed out. Once it has seen the command exit,
-or has stopped it, it reads at most 1 MiB more and returns
-(after a stop, once it has also waited at most five seconds
-for the command to exit), so a background process that keeps
-writing does not hold it either; a wake between the exit and the runner seeing it
-is a normal capped read, and output written after the last
-read is not recorded. A deadline that has
+budget's deadline, and reads at most 1 MiB (1,048,576 bytes)
+of output per wake, so a lane that writes without pause is
+still timed out. Once it has seen the command exit, or has
+stopped it, it reads at most 1 MiB more and returns (after a
+stop, once it has also waited at most five seconds for the
+command to exit), so a background process that keeps writing
+does not hold it either; a wake between the exit and the
+runner seeing it is a normal capped read, and output written
+after the last read is not recorded. A deadline that has
 passed by the time the runner sees the command exit decides
 the status, so a command that exits just after a deadline is
 recorded as `timed_out` or `stalled`, with its own exit code
-as `return_code`.
-When a lane stalls or times out it sends `SIGTERM` to the lane's
-process group and, if the command's own process is still
-running five seconds later, `SIGKILL`. If the system
-refuses to signal the group (`EPERM`), the runner signals
-the command's own process instead. If that process is still
-running five seconds after `SIGKILL`, for example because
-the runner may not signal it at all, the runner stops
-waiting, leaves it running, and records `return_code` as
-`null` in the JSON file. A lane can therefore run several
-seconds past its budget. `duration_seconds` is measured when
-the runner stops waiting for the command, so it includes
-that time.
+as `return_code`. When a lane stalls or times out it sends
+`SIGTERM` to the lane's process group and, if the command's
+own process is still running five seconds later, `SIGKILL`.
+If the system refuses to signal the group (`EPERM`), the
+runner signals the command's own process instead. If that
+process is still running five seconds after `SIGKILL`, for
+example because the runner may not signal it at all, the
+runner stops waiting, leaves it running, and records
+`return_code` as `null` in the JSON file. A lane can
+therefore run several seconds past its budget.
+`duration_seconds` is measured when the runner stops waiting
+for the command, so it includes that time.
 
 ## What is in it
 
@@ -131,26 +128,26 @@ that time.
   holds how the report keeps each lane's status apart and
   what to say about `address-comments`.
 - [`scripts/run_bounded_review.py`](skills/multi-persona-code-review/scripts/run_bounded_review.py)
-  runs the command after `--` (the `--` may be left out
-  when the command's first word does not start with `-`)
-  in `--cwd`, collects its
-  stdout and stderr together, and writes the result. It
-  exits `0` when the status is `completed` and `2`
-  otherwise. Invalid arguments, and a result path its
-  pre-run check refuses, also exit `2`, with a message,
-  before the command runs and with no result file written.
-  Budgets must be positive and finite. `--out` and
+  runs the command after `--` (the `--` may be left out when
+  the command's first word does not start with `-`) in
+  `--cwd`, collects its stdout and stderr together, and
+  writes the result. It exits `0` when the status is
+  `completed` and `2` otherwise. Invalid arguments, and a
+  result path its pre-run check refuses, also exit `2`, with
+  a message, before the command runs and with no result file
+  written. Budgets must be positive and finite. `--out` and
   `--json-out` must be separate files. Names that are equal,
   or one inside the other, after Unicode NFC normalisation
   and case folding are refused, as are two existing names
   for one file and two names in one existing directory that
   match after that normalisation. Other ways a file system
-  can make two names one file are not detected. The lane's stdin is `/dev/null`, so a command
-  that waits for input reads end-of-file at once.
+  can make two names one file are not detected. The lane's
+  stdin is `/dev/null`, so a command that waits for input
+  reads end-of-file at once.
 
 The persona passes themselves run on Codex
-(`env -u npm_config_package npx -y @openai/codex`) or
-Claude Code
+(`env -u npm_config_package npx -y @openai/codex`) or Claude
+Code
 (`env -u npm_config_package npx -y @anthropic-ai/claude-code`),
 as `SKILL.md` describes. The `env -u` prefix removes
 `npm_config_package`, which an `npx --package ...` parent
@@ -180,9 +177,9 @@ path into its persona's prompt.
 
 Every example in `SKILL.md` that writes a file writes it
 under `<out-dir>`, a directory the operator chooses; there
-is no default.
-`SKILL.md` asks for one outside the reviewed repository, so
-the result files are not part of the diff under review.
+is no default. `SKILL.md` asks for one outside the reviewed
+repository, so the result files are not part of the diff
+under review.
 
 ### The marker keeps the old name
 
@@ -206,9 +203,10 @@ of them ships here.
   to say so in the report.
 - `address-comments` is the skill that acts on the
   `TODO(code-review:<id>)` markers this one writes, and it
-  is published separately as `trycopilotai/address-comments`.
-  Without it, nothing acts on the markers; they stay in the
-  source until someone resolves them.
+  is published separately as
+  `trycopilotai/address-comments`. Without it, nothing acts
+  on the markers; they stay in the source until someone
+  resolves them.
 - Codex and Claude Code are not installed by this
   repository. `npx` fetches them from npm when they are not
   already in its cache.
@@ -219,12 +217,12 @@ not be public when you read this.
 
 ## Use it
 
-Read [`skills/multi-persona-code-review/SKILL.md`](skills/multi-persona-code-review/SKILL.md)
+Read
+[`skills/multi-persona-code-review/SKILL.md`](skills/multi-persona-code-review/SKILL.md)
 before you install it. The file is an instruction set that
 steers an agent, and its runner-wrapped Codex commands pass
-`--yolo`, so
-both installs below are pinned to a tag rather than to
-`main`.
+`--yolo`, so both installs below are pinned to a tag rather
+than to `main`.
 
 ### Claude Code
 
@@ -373,16 +371,15 @@ fixture, not a benchmark.
   `claude-test-coverage` (`claude -p` with the diff in the
   prompt), and each returned findings for the three planted
   defects. The agent checked them against the source, wrote
-  three `TODO(code-review:<id>)` comments, recorded the
-  l8() lane as `not_run` and left out the L9/L10 addendum.
+  three `TODO(code-review:<id>)` comments, recorded the l8()
+  lane as `not_run` and left out the L9/L10 addendum.
 - [`evidence/transcripts/2026-10-08-codex-invocation.txt`](evidence/transcripts/2026-10-08-codex-invocation.txt):
   Codex 0.146.0, with the v0.1.0 skill, in its
   `workspace-write` sandbox, ran two lanes and one smaller
   retry through the runner. All three were recorded as
-  `stalled` with no output. It then reviewed the diff
-  itself as a recorded fallback, wrote three markers for the
-  same three defects, and recorded the l8() lane as
-  `not_run`.
+  `stalled` with no output. It then reviewed the diff itself
+  as a recorded fallback, wrote three markers for the same
+  three defects, and recorded the l8() lane as `not_run`.
 
 Neither run committed anything, and in both the write-back
 added only comment lines. The Claude Code run's final
@@ -432,10 +429,9 @@ directory.
   `env -u npm_config_package` prefix. Both failed with an
   npm network error after about 70 seconds; with the prefix,
   the first output, npm's `ENOTFOUND`, came after about 71
-  seconds of silence.
-  That is consistent with a lane that stalls without
-  network, but the Codex run has not been repeated with this
-  release.
+  seconds of silence. That is consistent with a lane that
+  stalls without network, but the Codex run has not been
+  repeated with this release.
 - The documented lane commands run `npx -y` without a
   version, so a lane gets whatever release npm serves that
   day. In the Claude Code run they were Claude Code 2.1.295
@@ -444,8 +440,9 @@ directory.
   the working tree before the release commit, not from the
   tag.
 - A nested `npx` uses npm's cache, by default in the home
-  directory, so a lane reads and writes outside the workspace
-  even when the agent's own tool calls stay inside it.
+  directory, so a lane reads and writes outside the
+  workspace even when the agent's own tool calls stay inside
+  it.
 
 ## Contributing
 
