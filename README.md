@@ -10,6 +10,10 @@ persona lane under a hard and an idle timeout and writes a
 result file when the lane completes, fails, stalls or times
 out.
 
+[![auto-lint-pr](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/auto-lint-pr.yml/badge.svg)](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/auto-lint-pr.yml)
+[![check](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/check.yml/badge.svg)](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/check.yml)
+[![lint](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/lint.yml/badge.svg)](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/lint.yml)
+
 Stalled and timed-out lanes still write a status file.
 
 <picture>

@@ -4,6 +4,7 @@ PYTHON ?= python3
 check:
 	@$(PYTHON) tests/test_run_bounded_review.py
 	@$(PYTHON) tests/test_integrations.py
+	@$(PYTHON) tests/test_readme_badges.py
 
 record:
 	@$(PYTHON) scripts/record_session.py
