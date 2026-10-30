@@ -291,12 +291,17 @@ class ReadmeTest(unittest.TestCase):
         lines = read(TRANSCRIPT).splitlines()
         grep = lines.index("$ grep '\"status\"' out/*.json")
         self.assertEqual(lines[grep + 1 : grep + 5], STATUS_LINES)
-        for name, budget in (("silent", "--idle-seconds 1"), ("endless", "--timeout-seconds 2")):
+        for name, budget in (
+            ("silent", "--idle-seconds 1"),
+            ("endless", "--timeout-seconds 2"),
+        ):
             command = [line for line in lines if line.startswith("$ review %s " % name)]
             self.assertEqual(len(command), 1, name)
             self.assertIn(budget, command[0])
             at = lines.index(command[0])
-            self.assertEqual(lines[at + 1 : at + 3], ['$ echo "exit status: $?"', "exit status: 2"])
+            self.assertEqual(
+                lines[at + 1 : at + 3], ['$ echo "exit status: $?"', "exit status: 2"]
+            )
 
     def test_the_stalled_lane_markdown_is_shown(self) -> None:
         text = read(TRANSCRIPT)
@@ -413,7 +418,15 @@ class EvidenceTest(unittest.TestCase):
         for field in ("issue", "impact", "recommendation", "test"):
             self.assertIn("  %s: " % field, finding)
         skill = read(SKILL)
-        for field in ("severity", "file", "line", "issue", "impact", "recommendation", "test"):
+        for field in (
+            "severity",
+            "file",
+            "line",
+            "issue",
+            "impact",
+            "recommendation",
+            "test",
+        ):
             self.assertIn("  %s: " % field, skill.replace("- severity", "  severity"))
 
     def test_transcript_carries_no_capture_path(self) -> None:
@@ -446,7 +459,9 @@ class InvocationTest(unittest.TestCase):
 
     def test_published_transforms_are_declared_in_order(self) -> None:
         for record in self.published():
-            transforms = [t for t in record["transforms"] if t != "replace-isolation-root"]
+            transforms = [
+                t for t in record["transforms"] if t != "replace-isolation-root"
+            ]
             self.assertEqual(transforms, INVOCATION_TRANSFORMS)
             if "replace-isolation-root" in record["transforms"]:
                 self.assertEqual(record["transforms"][0], "replace-isolation-root")
@@ -472,7 +487,9 @@ class InvocationTest(unittest.TestCase):
 
     def test_each_transcript_shows_the_l8_lane_not_run(self) -> None:
         for record in self.published():
-            final = read(ROOT / record["transcript"]["path"]).split("\n## final message\n")[1]
+            final = read(ROOT / record["transcript"]["path"]).split(
+                "\n## final message\n"
+            )[1]
             self.assertIn("not_run", final)
             self.assertIn("l8", final)
 
@@ -491,12 +508,17 @@ class RendererTest(unittest.TestCase):
     def setUp(self) -> None:
         self.module = load(RENDERER, "render_invocation")
         self.transforms = self.module.Transforms(
-            "/h/u/fix", ["/h/u/fix/.agents/skills/" + NAME, "/h/u/clone"], "/h/u", "box.local"
+            "/h/u/fix",
+            ["/h/u/fix/.agents/skills/" + NAME, "/h/u/clone"],
+            "/h/u",
+            "box.local",
         )
 
     def test_transforms_replace_whole_prefixes_in_order(self) -> None:
         t = self.transforms
-        self.assertEqual(t("/h/u/fix/.agents/skills/%s/SKILL.md" % NAME), "/plugin/SKILL.md")
+        self.assertEqual(
+            t("/h/u/fix/.agents/skills/%s/SKILL.md" % NAME), "/plugin/SKILL.md"
+        )
         self.assertEqual(t("/h/u/clone/skills/x"), "/plugin/skills/x")
         self.assertEqual(t("cd /h/u/fix && ls"), "cd /work && ls")
         self.assertEqual(t("/h/u/fixture/a"), "~/fixture/a")
@@ -507,7 +529,11 @@ class RendererTest(unittest.TestCase):
 
     def test_isolation_root_is_replaced_first(self) -> None:
         t = self.module.Transforms(
-            "/iso/fixture", ["/iso/plugin"], "/h/u", "box", ["/t/iso.1", "/private/t/iso.1"]
+            "/iso/fixture",
+            ["/iso/plugin"],
+            "/h/u",
+            "box",
+            ["/t/iso.1", "/private/t/iso.1"],
         )
         self.assertEqual(t("/private/t/iso.1/fixture/repo/a.py"), "/work/repo/a.py")
         self.assertEqual(t("/t/iso.1/plugin/skills/x"), "/plugin/skills/x")
@@ -523,18 +549,51 @@ class RendererTest(unittest.TestCase):
 
     def test_claude_code_log(self) -> None:
         events = [
-            {"type": "system", "subtype": "init", "claude_code_version": "9.9.9", "model": "m"},
-            {"type": "assistant", "message": {"content": [
-                {"type": "tool_use", "id": "a", "name": "Bash",
-                 "input": {"command": "cat /h/u/fix/" + "x" * 500}}]}},
-            {"type": "user", "message": {"content": [
-                {"type": "tool_result", "tool_use_id": "a", "is_error": True,
-                 "content": "Exit code 2\nboom"}]}},
-            {"type": "result", "subtype": "success", "num_turns": 2,
-             "duration_ms": 5, "total_cost_usd": 0.5, "result": "done\nok\n\n"},
+            {
+                "type": "system",
+                "subtype": "init",
+                "claude_code_version": "9.9.9",
+                "model": "m",
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "a",
+                            "name": "Bash",
+                            "input": {"command": "cat /h/u/fix/" + "x" * 500},
+                        }
+                    ]
+                },
+            },
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "a",
+                            "is_error": True,
+                            "content": "Exit code 2\nboom",
+                        }
+                    ]
+                },
+            },
+            {
+                "type": "result",
+                "subtype": "success",
+                "num_turns": 2,
+                "duration_ms": 5,
+                "total_cost_usd": 0.5,
+                "result": "done\nok\n\n",
+            },
         ]
         raw = "\n".join(json.dumps(e) for e in events)
-        text = self.module.render("claude-code", "Use /" + NAME + "\n", raw, self.transforms)
+        text = self.module.render(
+            "claude-code", "Use /" + NAME + "\n", raw, self.transforms
+        )
         self.assertIn("model: m\n", text)
         self.assertIn("## prompt\n\nUse /" + NAME + "\n\n## tool calls", text)
         self.assertIn("    command: cat /work/" + "x" * 390 + " ...[", text)
@@ -544,10 +603,22 @@ class RendererTest(unittest.TestCase):
     def test_codex_log(self) -> None:
         events = [
             {"type": "thread.started", "thread_id": "t"},
-            {"type": "item.completed", "item": {"type": "command_execution",
-             "command": "python3 /h/u/fix/r.py", "exit_code": 2}},
-            {"type": "item.completed", "item": {"type": "agent_message", "text": "y" * 450}},
-            {"type": "item.completed", "item": {"type": "agent_message", "text": "done"}},
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "command": "python3 /h/u/fix/r.py",
+                    "exit_code": 2,
+                },
+            },
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "y" * 450},
+            },
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "done"},
+            },
             {"type": "turn.completed", "usage": {"output_tokens": 3}},
         ]
         raw = "\n".join(json.dumps(e) for e in events)
@@ -614,7 +685,11 @@ class NpxEnvironmentTest(unittest.TestCase):
             return json.loads(record.read_text(encoding="utf-8"))
 
     def test_the_documented_commands_complete(self) -> None:
-        smoke = [c for c in documented_npx_commands() if c.startswith(NPX_PREFIX + "-y @anthropic-ai/")]
+        smoke = [
+            c
+            for c in documented_npx_commands()
+            if c.startswith(NPX_PREFIX + "-y @anthropic-ai/")
+        ]
         self.assertEqual(len(smoke), 2)
         lanes = [shlex.split(line) for line in smoke]
         lanes.append(documented_lane("claude-architecture"))
@@ -624,13 +699,17 @@ class NpxEnvironmentTest(unittest.TestCase):
                 record = self.run_lane(command)
                 self.assertEqual(record["status"], "completed")
                 self.assertEqual(record["return_code"], 0)
-                self.assertIn("stub npx ran: " + " ".join(command[4:]), record["output"])
+                self.assertIn(
+                    "stub npx ran: " + " ".join(command[4:]), record["output"]
+                )
 
     def test_the_runner_passes_the_leaked_variable_to_a_bare_npx(self) -> None:
         record = self.run_lane(["npx", "-y", "@anthropic-ai/claude-code", "--version"])
         self.assertEqual(record["status"], "failed")
         self.assertEqual(record["return_code"], 127)
-        self.assertIn("sh: @anthropic-ai/claude-code: No such file or directory", record["output"])
+        self.assertIn(
+            "sh: @anthropic-ai/claude-code: No such file or directory", record["output"]
+        )
 
 
 class DemoTest(unittest.TestCase):

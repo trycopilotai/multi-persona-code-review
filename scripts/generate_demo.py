@@ -85,9 +85,7 @@ def steps_from_transcript(transcript: str) -> tuple[str, list[list[str]]]:
             continue
         steps[-1].append(line)
     if len(steps) != STEP_COUNT:
-        raise ValueError(
-            "expected %d commands, found %d" % (STEP_COUNT, len(steps))
-        )
+        raise ValueError("expected %d commands, found %d" % (STEP_COUNT, len(steps)))
     for block in steps:
         if not block[-1].startswith("exit status: "):
             raise ValueError("a command has no exit status: %s" % block[0])
@@ -111,9 +109,11 @@ def line_colour(line: str) -> str:
 
 
 def text_element(line: str, baseline: int) -> str:
-    return (
-        '    <text x="%d" y="%d" fill="%s" xml:space="preserve">%s</text>'
-        % (MARGIN_X, baseline, line_colour(line), html.escape(line))
+    return '    <text x="%d" y="%d" fill="%s" xml:space="preserve">%s</text>' % (
+        MARGIN_X,
+        baseline,
+        line_colour(line),
+        html.escape(line),
     )
 
 

@@ -11,13 +11,12 @@ make check
 
 That runs `tests/test_run_bounded_review.py` and
 `tests/test_integrations.py`. With `make`, they need
-`python3` and `git` and nothing else, on a POSIX system.
-The first runs the
-program on short Python commands in temporary directories
-and takes a few seconds, because some lanes wait out their
-budgets. The second needs a real clone with its history,
-because it reads `git log`; when `HEAD` carries a release
-tag, it also checks that tag against the manifests.
+`python3` and `git` and nothing else, on a POSIX system. The
+first runs the program on short Python commands in temporary
+directories and takes a few seconds, because some lanes wait
+out their budgets. The second needs a real clone with its
+history, because it reads `git log`; when `HEAD` carries a
+release tag, it also checks that tag against the manifests.
 
 **The packaging contract asserts on the README.** These will
 fail on an innocent-looking prose edit:
@@ -53,12 +52,11 @@ make demo
 the commands listed in the manifest in a throwaway
 directory, writes the transcript with that directory's path
 replaced by `/work`, and rewrites the manifest's hashes,
-date and interpreter. It needs `bash`, `sh`, `cat`,
-`git`, `grep`, `sed`, `sleep` and `python3`, and takes a few
-seconds. `make demo` rebuilds the
-two images from the transcript. `make assets` rebuilds the
-social preview and needs Chrome or Chromium;
-`make asset-check` does not.
+date and interpreter. It needs `bash`, `sh`, `cat`, `git`,
+`grep`, `sed`, `sleep` and `python3`, and takes a few
+seconds. `make demo` rebuilds the two images from the
+transcript. `make assets` rebuilds the social preview and
+needs Chrome or Chromium; `make asset-check` does not.
 
 ## What is most useful
 

@@ -27,7 +27,9 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
-PROGRAM = ROOT / "skills" / "multi-persona-code-review" / "scripts" / "run_bounded_review.py"
+PROGRAM = (
+    ROOT / "skills" / "multi-persona-code-review" / "scripts" / "run_bounded_review.py"
+)
 RESULT_KEYS = [
     "command",
     "cwd",
@@ -301,7 +303,9 @@ class LateExitTest(unittest.TestCase):
     """
 
     class LateProcess:
-        def __init__(self, stdout, delay: float, write_end: int, last_words: bytes) -> None:
+        def __init__(
+            self, stdout, delay: float, write_end: int, last_words: bytes
+        ) -> None:
             self.stdout = stdout
             self.pid = -1
             self.delay = delay
@@ -328,7 +332,9 @@ class LateExitTest(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
-    def collect(self, timeout: float, idle: float, last_words: bytes = b"", module=None):
+    def collect(
+        self, timeout: float, idle: float, last_words: bytes = b"", module=None
+    ):
         if module is None:
             module = self.load()
         read_end, write_end = os.pipe()
@@ -406,7 +412,9 @@ class ArtifactTest(RunnerTestCase):
                 "--idle-seconds",
                 "5",
                 "--",
-                *python_command("import sys; print('read %d bytes' % len(sys.stdin.read()))"),
+                *python_command(
+                    "import sys; print('read %d bytes' % len(sys.stdin.read()))"
+                ),
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -431,7 +439,9 @@ class ArtifactTest(RunnerTestCase):
         result, record = self.run_lane(python_command("print('x')"), json_out=False)
         self.assertEqual(result.returncode, 0)
         self.assertIsNone(record)
-        self.assertEqual(sorted(p.name for p in (self.scratch / "out").iterdir()), ["lane.md"])
+        self.assertEqual(
+            sorted(p.name for p in (self.scratch / "out").iterdir()), ["lane.md"]
+        )
 
     def test_missing_parent_directories_are_created(self) -> None:
         markdown = self.scratch / "a" / "b" / "lane.md"
@@ -509,7 +519,10 @@ class ArtifactTest(RunnerTestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         data = json.loads(record.read_text())
-        self.assertEqual(data["command"][1:], ["-c", "import sys; print(sys.argv[1:])", "--out", "kept"])
+        self.assertEqual(
+            data["command"][1:],
+            ["-c", "import sys; print(sys.argv[1:])", "--out", "kept"],
+        )
         self.assertIn("['--out', 'kept']", data["output"])
 
     def test_the_recorded_command_and_cwd(self) -> None:
@@ -564,11 +577,7 @@ class WriteTest(RunnerTestCase):
     def test_a_failed_write_leaves_neither_file(self) -> None:
         # The lane replaces the JSON file's directory with a file, so the
         # second write fails after the first was staged.
-        source = (
-            "import os\n"
-            "os.rmdir('j')\n"
-            "open('j', 'w').write('x')\n"
-        )
+        source = "import os\n" "os.rmdir('j')\n" "open('j', 'w').write('x')\n"
         result = self.lane(
             "--cwd",
             str(self.scratch),
@@ -728,7 +737,9 @@ class ProcessGroupTest(RunnerTestCase):
         with mock.patch.object(module.os, "killpg", refused), mock.patch.object(
             process, "send_signal", refused
         ), mock.patch.object(module, "STOP_WAIT_SECONDS", 0.5):
-            status, _output, duration, return_code = module.collect_output(process, 30, 0.5)
+            status, _output, duration, return_code = module.collect_output(
+                process, 30, 0.5
+            )
         elapsed = time.monotonic() - started
         self.assertEqual(status, "stalled")
         self.assertIsNone(return_code)
@@ -754,12 +765,57 @@ class UsageTest(RunnerTestCase):
         cases = (
             ["--name", "lane", "--out", "lane.md"],
             ["--name", "lane", "--out", "lane.md", "--"],
-            ["--name", "lane", "--out", "lane.md", "--timeout-seconds", "0", "--", "true"],
-            ["--name", "lane", "--out", "lane.md", "--idle-seconds", "-1", "--", "true"],
+            [
+                "--name",
+                "lane",
+                "--out",
+                "lane.md",
+                "--timeout-seconds",
+                "0",
+                "--",
+                "true",
+            ],
+            [
+                "--name",
+                "lane",
+                "--out",
+                "lane.md",
+                "--idle-seconds",
+                "-1",
+                "--",
+                "true",
+            ],
             ["--out", "lane.md", "--", "true"],
-            ["--name", "lane", "--out", "lane.md", "--timeout-seconds", "inf", "--", "true"],
-            ["--name", "lane", "--out", "lane.md", "--timeout-seconds", "nan", "--", "true"],
-            ["--name", "lane", "--out", "lane.md", "--idle-seconds", "inf", "--", "true"],
+            [
+                "--name",
+                "lane",
+                "--out",
+                "lane.md",
+                "--timeout-seconds",
+                "inf",
+                "--",
+                "true",
+            ],
+            [
+                "--name",
+                "lane",
+                "--out",
+                "lane.md",
+                "--timeout-seconds",
+                "nan",
+                "--",
+                "true",
+            ],
+            [
+                "--name",
+                "lane",
+                "--out",
+                "lane.md",
+                "--idle-seconds",
+                "inf",
+                "--",
+                "true",
+            ],
         )
         for arguments in cases:
             with self.subTest(arguments=arguments):
@@ -783,11 +839,19 @@ class UsageTest(RunnerTestCase):
         for out, json_out in cases:
             with self.subTest(out=out, json_out=json_out):
                 result = self.usage(
-                    "--name", "lane", "--out", out, "--json-out", json_out,
-                    "--", *python_command("open(%r, 'w').write('x')" % str(marker)),
+                    "--name",
+                    "lane",
+                    "--out",
+                    out,
+                    "--json-out",
+                    json_out,
+                    "--",
+                    *python_command("open(%r, 'w').write('x')" % str(marker)),
                 )
                 self.assertEqual(result.returncode, 2, result.stderr)
-                self.assertIn("error: --out and --json-out must be separate files", result.stderr)
+                self.assertIn(
+                    "error: --out and --json-out must be separate files", result.stderr
+                )
                 self.assertNotIn("Traceback", result.stderr)
                 self.assertFalse(marker.exists())
                 self.assertEqual(os.listdir(str(self.scratch)), [])
@@ -807,8 +871,11 @@ class UsageTest(RunnerTestCase):
         for extra in cases:
             with self.subTest(extra=extra):
                 result = self.usage(
-                    "--name", "lane", *extra,
-                    "--", *python_command("open(%r, 'w').write('x')" % str(marker)),
+                    "--name",
+                    "lane",
+                    *extra,
+                    "--",
+                    *python_command("open(%r, 'w').write('x')" % str(marker)),
                 )
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertIn("error: cannot write", result.stderr)
@@ -851,7 +918,14 @@ class UsageTest(RunnerTestCase):
         (self.scratch / "first.md").write_text("old")
         os.link(str(self.scratch / "first.md"), str(self.scratch / "second.json"))
         result = self.usage(
-            "--name", "lane", "--out", "first.md", "--json-out", "second.json", "--", "true"
+            "--name",
+            "lane",
+            "--out",
+            "first.md",
+            "--json-out",
+            "second.json",
+            "--",
+            "true",
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("separate files", result.stderr)
@@ -873,7 +947,9 @@ class UsageTest(RunnerTestCase):
 
     def test_a_long_result_name_within_the_limit_is_written(self) -> None:
         name = "b" * 250 + ".md"
-        result = self.usage("--name", "lane", "--out", name, "--", *python_command("pass"))
+        result = self.usage(
+            "--name", "lane", "--out", name, "--", *python_command("pass")
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.scratch / name).is_file())
 
