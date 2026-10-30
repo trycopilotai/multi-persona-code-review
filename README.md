@@ -4,15 +4,20 @@ A skill that has a coding agent review one diff through a
 roster of review personas, check each finding against the
 source, and write the findings that hold up back into the
 code as `TODO(code-review:<id>)` comments, or into a
-`CODE_REVIEW.gpt.md` queue where a comment does not fit. It
-ships one program, `run_bounded_review.py`, which runs one
-persona lane under a hard and an idle timeout and writes a
-result file when the lane completes, fails, stalls or times
-out.
+`CODE_REVIEW.gpt.md` queue where a comment does not fit.
+
+---
 
 [![auto-lint-pr](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/auto-lint-pr.yml/badge.svg)](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/auto-lint-pr.yml)
 [![check](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/check.yml/badge.svg)](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/check.yml)
 [![lint](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/lint.yml/badge.svg)](https://github.com/trycopilotai/multi-persona-code-review/actions/workflows/lint.yml)
+
+---
+
+It ships one program, `run_bounded_review.py`, which runs
+one persona lane under a hard and an idle timeout and writes
+a result file when the lane completes, fails, stalls or
+times out.
 
 Stalled and timed-out lanes still write a status file.
 
